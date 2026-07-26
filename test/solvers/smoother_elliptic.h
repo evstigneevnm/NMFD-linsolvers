@@ -35,7 +35,9 @@ public:
 
     struct params
     {
-        params(const std::string &log_prefix = "", const std::string &log_name = "smoother_elliptic::")
+        params(
+            const std::string& = "",
+            const std::string& = "smoother_elliptic::")
         {
         }
     };
@@ -45,7 +47,7 @@ public:
     };
     using utils_hierarchy = utils;
 
-    smoother_elliptic(const utils_hierarchy &u, const params_hierarchy &p)
+    smoother_elliptic(const utils_hierarchy&, const params_hierarchy&)
     {
     }
     ~smoother_elliptic()

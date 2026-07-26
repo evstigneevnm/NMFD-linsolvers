@@ -27,7 +27,7 @@ public:
     };
     using utils_hierarchy = utils;
 
-    coarsening(const utils_hierarchy &u, const params_hierarchy &p)
+    coarsening(const utils_hierarchy&, const params_hierarchy&)
     {
     }
 
@@ -42,7 +42,10 @@ public:
 
     }
     std::shared_ptr<operator_type> 
-    coarse_operator(const operator_type &op, const restrictor_type &restrictor, const prolongator_type &prolongator)
+    coarse_operator(
+        const operator_type& op,
+        const restrictor_type&,
+        const prolongator_type&)
     {
         return std::make_shared<operator_type>(op.get_size()/2);
     }

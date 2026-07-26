@@ -42,7 +42,9 @@ public:
     
     struct params
     {
-        params(const std::string &log_prefix = "", const std::string &log_name = "dummy::")
+        params(
+            const std::string& = "",
+            const std::string& = "dummy::")
         {
         }
         #ifdef NMFD_ENABLE_NLOHMANN
@@ -75,7 +77,7 @@ public:
     {
     }
 
-    void set_operator(std::shared_ptr<const operator_type> op)
+    void set_operator(std::shared_ptr<const operator_type>)
     {
     }
 
@@ -85,7 +87,7 @@ public:
     }
 
     /// inplace version for preconditioner interface
-    void apply(vector_type &x) const 
+    void apply(vector_type&) const
     {
     }
 

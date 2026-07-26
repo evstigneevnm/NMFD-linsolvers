@@ -18,6 +18,7 @@
 #define __NMFD_ALGO_HIERARCHY_CREATOR_H__
 
 #include <memory>
+#include <stdexcept>
 #include "utils_hierarchy_dummy.h"
 #include "params_hierarchy_dummy.h"
 
@@ -30,8 +31,8 @@ template<class Algo, class = int>
 struct algo_hierarchy_creator
 {
     static std::shared_ptr<Algo> get(
-        const utils_hierarchy_dummy &utils,
-        const params_hierarchy_dummy &params
+        const utils_hierarchy_dummy&,
+        const params_hierarchy_dummy&
     )
     {
         throw std::logic_error("algo_hierarchy_creator::hierarchy constructor is not implemented");

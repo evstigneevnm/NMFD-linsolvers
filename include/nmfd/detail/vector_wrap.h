@@ -18,6 +18,7 @@
 #define __NMFD_VECTOR_INIT_USE_WRAP_H__
 
 #include <cassert>
+#include <utility>
 
 namespace nmfd
 {

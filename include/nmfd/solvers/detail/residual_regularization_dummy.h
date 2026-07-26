@@ -31,7 +31,7 @@ public:
     {}
     
     template<class VecX>
-    void apply(VecX &x) const
+    void apply(VecX&) const
     {
     }
 

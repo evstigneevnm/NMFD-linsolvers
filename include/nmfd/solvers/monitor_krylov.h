@@ -32,7 +32,7 @@ class monitor_krylov: public default_monitor<VectorOperations,Log>
 {
 private:
     using parent_t = default_monitor<VectorOperations, Log>;
-    using T = typename VectorOperations::scalar_type;
+    using T = typename VectorOperations::norm_type;
 protected:
     using parent_t::convergence_history_;
 public:    

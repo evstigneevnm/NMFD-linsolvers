@@ -1,5 +1,49 @@
-# MG_poisson_sample
-Geometric Multigrid Poisson sample using SCFD library to verify SYCL and HIP abilities (PAVT2025 code)
+# NMFD Linear Solvers
+
+Template-based linear solvers, Krylov building blocks, preconditioners, and
+linear-space interfaces. SCFD supplies the portable backend and utility layer
+through the pinned `contrib/scfd` submodule.
+
+## Building And Testing
+
+Initialize all nested dependencies after cloning:
+
+```bash
+git submodule update --init --recursive
+```
+
+Build and run the complete CPU suite with the default configuration:
+
+```bash
+make run_tests_cpu TEST_OMP_NUM_THREADS=8
+```
+
+The build is controlled by Make include files. A machine-specific or CI
+configuration can be selected without changing the Makefile:
+
+```bash
+make check_gmres_core_cpu \
+  CONFIG_FILE=build_configs/config_github_ubuntu_gcc.inc \
+  BUILD_DIR=build/gcc
+```
+
+An external SCFD checkout can be selected with `SCFD_ROOT=/path/to/scfd`.
+Otherwise, the pinned `contrib/scfd` checkout is used. Available standalone
+checks are:
+
+- `check_public_headers_cpu`
+- `check_orthogonalization_cpu`
+- `check_arnoldi_cpu`
+- `check_monitor_cpu`
+- `check_gmres_core_cpu`
+- `check_gmres_legacy_cpu`
+- `check_gmres_mg_cpu`
+
+GitHub Actions runs every check as an independent GCC and Clang matrix job.
+AddressSanitizer and UndefinedBehaviorSanitizer run after the CPU matrix passes.
+The public-header check compiles each standalone header in isolation.
+`glued_matrix_operator.h` remains a documented legacy exception until the
+parent project's glued-vector operations are migrated into NMFD.
 
 # Basic interfaces
 
@@ -249,5 +293,3 @@ class mg
 {
 };
 ```
-
-

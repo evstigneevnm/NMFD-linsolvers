@@ -1,167 +1,174 @@
-#include <memory>
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include <scfd/utils/log.h>
-#include "cpu_vector_space.h"
-#include "prolongator.h"
-#include "restrictor.h"
-#include "ident_op.h"
-#include "coarsening.h"
-#include "linear_operator_elliptic.h"
-#include "smoother_elliptic.h"
+
 #include <nmfd/preconditioners/mg.h>
-#include <nmfd/solvers/monitor_krylov.h>
 #include <nmfd/solvers/gmres.h>
-#include "residual_regularization_test.h"
+#include <nmfd/solvers/monitor_krylov.h>
 
-#define M_PIl 3.141592653589793238462643383279502884L
+#include "common/cpu_reference_vector_space.h"
+#include "common/test_harness.h"
+#include "solvers/coarsening.h"
+#include "solvers/ident_op.h"
+#include "solvers/linear_operator_elliptic.h"
+#include "solvers/prolongator.h"
+#include "solvers/residual_regularization_test.h"
+#include "solvers/restrictor.h"
+#include "solvers/smoother_elliptic.h"
 
-
-
-int main(int argc, char const *args[])
+namespace
 {
-    using log_t = scfd::utils::log_std;
-    using T = double;
-    using T_vec = double*;
-    using T_mvec = double*;
-    using vec_ops_t = nmfd::cpu_vector_space<T, T_vec, T_mvec, log_t>;
-    using prolongator_t = tests::prolongator<vec_ops_t, log_t>;
-    using restrictor_t = tests::restrictor<vec_ops_t, log_t>;
-    using ident_op_t = tests::ident_op<vec_ops_t, log_t>;
-    using lin_op_elliptic_t = tests::linear_operator_elliptic<vec_ops_t, log_t>;
-    using lin_op_t = lin_op_elliptic_t;
-    using coarsening_t = tests::coarsening<lin_op_t, log_t>;
-    using smoother_elliptic_t = tests::smoother_elliptic<vec_ops_t, log_t>;
-    using smoother_t = smoother_elliptic_t;
-    using mg_t = 
-        nmfd::preconditioners::mg
-        <
-            lin_op_t, restrictor_t, prolongator_t, smoother_t, ident_op_t, coarsening_t, log_t
-        >;
-    using mg_params_t = mg_t::params_hierarchy;
-    using mg_utils_t = mg_t::utils_hierarchy;
-    using monitor_t = nmfd::solvers::monitor_krylov<vec_ops_t, log_t>;
-    using residual_reg_t = nmfd::solvers::detail::residual_regularization_test<vec_ops_t, log_t>;
-    using gmres_elliptic_w_reg_t = nmfd::solvers::gmres< vec_ops_t, monitor_t, log_t, lin_op_elliptic_t, mg_t, residual_reg_t>;
 
+template<class VectorSpace, class Operator>
+typename VectorSpace::norm_type relative_residual(
+    const VectorSpace& vector_space,
+    const Operator& matrix_operator,
+    const typename VectorSpace::vector_type& rhs,
+    const typename VectorSpace::vector_type& solution)
+{
+    typename VectorSpace::vector_type residual(
+        static_cast<std::size_t>(vector_space.size()),
+        typename VectorSpace::scalar_type{});
+    matrix_operator.apply(solution, residual);
+    vector_space.add_lin_comb(1.0, rhs, -1.0, residual);
+    return vector_space.norm(residual)/
+        std::max(vector_space.norm(rhs), 1e-300);
+}
 
+} // namespace
 
-    int error = 0;
-    log_t log;
-    log.info("test gmres with mg preconditioner");
-    std::size_t N_with_preconds = 512;
-    //std::size_t N_with_no_preconds = 50;
-    std::shared_ptr<vec_ops_t> vec_ops;
+int main()
+{
+    using log_type = scfd::utils::log_std;
+    using vector_space_type =
+        nmfd::tests::cpu_reference_vector_space<double>;
+    using prolongator_type = tests::prolongator<vector_space_type, log_type>;
+    using restrictor_type = tests::restrictor<vector_space_type, log_type>;
+    using coarse_solver_type = tests::ident_op<vector_space_type, log_type>;
+    using operator_type =
+        tests::linear_operator_elliptic<vector_space_type, log_type>;
+    using coarsening_type = tests::coarsening<operator_type, log_type>;
+    using smoother_type =
+        tests::smoother_elliptic<vector_space_type, log_type>;
+    using multigrid_type =
+        nmfd::preconditioners::mg<
+            operator_type,
+            restrictor_type,
+            prolongator_type,
+            smoother_type,
+            coarse_solver_type,
+            coarsening_type,
+            log_type>;
+    using monitor_type =
+        nmfd::solvers::monitor_krylov<vector_space_type, log_type>;
+    using regularization_type =
+        nmfd::solvers::detail::residual_regularization_test<
+            vector_space_type,
+            log_type>;
+    using solver_type =
+        nmfd::solvers::gmres<
+            vector_space_type,
+            monitor_type,
+            log_type,
+            operator_type,
+            multigrid_type,
+            regularization_type>;
 
-    auto get_residual = [&log, &vec_ops](auto& A, auto& x, auto &y, auto &x_ref) 
+    nmfd::tests::test_harness test;
+    constexpr std::size_t dimension = 128;
+    constexpr double physical_residual_tolerance = 5e-8;
+    auto vector_space =
+        std::make_shared<vector_space_type>(
+            static_cast<vector_space_type::ordinal_type>(dimension));
+    auto matrix_operator =
+        std::make_shared<operator_type>(*vector_space);
+    auto regularization =
+        std::make_shared<regularization_type>(vector_space);
+
+    vector_space_type::vector_type rhs(dimension, 0.0);
+    const double two_pi = 2.0*std::acos(-1.0);
+    for(std::size_t index = 0; index < dimension; ++index)
     {
-        T_vec resid;
-        vec_ops->init_vector(resid);
-        vec_ops->start_use_vector(resid);
-        A.apply(x,resid);
-        vec_ops->add_lin_comb(1,y,-1,resid);
-        log.info_f("||Lx-y|| = %e", vec_ops->norm(resid) );
-        log.info_f("||y|| = %e", vec_ops->norm(y) );
-        vec_ops->assign(x_ref, resid);
-        vec_ops->add_lin_comb(1,x,-1,resid);
-        log.info_f("||x-x_ref|| = %e", vec_ops->norm(resid) );
-        log.info_f("||x_ref|| = %e", vec_ops->norm(x_ref) );
-        vec_ops->stop_use_vector(resid);
-        vec_ops->free_vector(resid);
-    };
-
-    //testing elliptic operator with constant kernel
-    {
-        std::size_t N = N_with_preconds;
-        vec_ops = std::make_shared<vec_ops_t>(N);
-        mg_utils_t mg_utils;
-        mg_utils.log = &log;
-        mg_params_t mg_params;
-        mg_params.direct_coarse = false;
-        mg_params.num_sweeps_pre = 3;
-        mg_params.num_sweeps_post = 3;
-        auto residual_reg = std::make_shared<residual_reg_t>(vec_ops);//, &log); //use log to see the action of the residual regularization
-
-        T_vec x,y,resid,x_ref;
-        vec_ops->init_vector(x);
-        vec_ops->init_vector(y);
-        vec_ops->init_vector(x_ref);        
-        vec_ops->start_use_vector(x);
-        vec_ops->start_use_vector(y);
-        vec_ops->start_use_vector(x_ref);
-
-        log.info_f("=>elliptic with size %i", vec_ops->size() ); 
-        auto lin_op_elliptic = std::make_shared<lin_op_elliptic_t>(*vec_ops); //with time step 5
-
-
-        for(int j=0;j<N;j++)
-        {
-            //y[j] = std::sin(2.0*j/(N-1)*M_PIl);
-            T s = T(j)/(N);
-            y[j] = std::sin(2.0*s*M_PIl);
-            x_ref[j] = std::sin(2.0*s*M_PIl)/(2.0*M_PIl)/(2.0*M_PIl);
-        }
-
-        gmres_elliptic_w_reg_t::params params_elliptic;
-        params_elliptic.monitor.rel_tol = 1.0e-10;
-        //params_elliptic.monitor.rel_tol = 1.0e-6;
-        params_elliptic.monitor.max_iters_num = 300;
-        params_elliptic.basis_size = 25;
-        params_elliptic.reorthogonalization = true;
-        {
-            auto mg = std::make_shared<mg_t>(mg_utils, mg_params);
-            log.info("left preconditioner");
-            params_elliptic.preconditioner_side = 'L';
-            gmres_elliptic_w_reg_t gmres(lin_op_elliptic, vec_ops, &log, params_elliptic, mg, residual_reg);
-
-            vec_ops->assign_scalar(0.0, x);
-            bool res = gmres.solve(y, x);
-            error += (!res);
-
-            log.info_f("pLgmres res: %s", res?"true":"false");
-            log.info(" reusing the solution...");
-            vec_ops->add_mul_scalar(0.0, 0.99999, x);
-            res = gmres.solve(y, x);
-            error += (!res);
-            log.info_f("pLgmres res with x0: %s", res?"true":"false");
-            log.info_f("solution final norm = %e", vec_ops->norm(x) );
-            get_residual(*lin_op_elliptic, x, y, x_ref);
-        }
-        {
-            auto mg = std::make_shared<mg_t>(mg_utils, mg_params);
-            log.info("right preconditioner");
-            params_elliptic.preconditioner_side = 'R';
-            gmres_elliptic_w_reg_t gmres(lin_op_elliptic, vec_ops, &log, params_elliptic, mg, residual_reg);
-
-            vec_ops->assign_scalar(0.0, x);
-            bool res = gmres.solve(y, x);
-            error += (!res);
-            log.info_f("pRgmres res: %s", res?"true":"false");
-            log.info(" reusing the solution...");
-            vec_ops->add_mul_scalar(0.0, 0.99999, x);
-            res = gmres.solve(y, x);
-            error += (!res);
-            log.info_f("pRgmres res with x0: %s", res?"true":"false");
-            log.info_f("solution final norm = %e", vec_ops->norm(x) );
-            get_residual(*lin_op_elliptic, x, y, x_ref);
-        }
-        
-        vec_ops->stop_use_vector(x);
-        vec_ops->stop_use_vector(y);
-        vec_ops->stop_use_vector(x_ref);
-        vec_ops->free_vector(x);
-        vec_ops->free_vector(y);
-        vec_ops->free_vector(x_ref);
+        const double coordinate =
+            static_cast<double>(index)/static_cast<double>(dimension);
+        rhs[index] = std::sin(two_pi*coordinate);
     }
 
- 
-    if(error > 0)
+    typename multigrid_type::utils_hierarchy multigrid_utils;
+    multigrid_utils.log = nullptr;
+    typename multigrid_type::params_hierarchy multigrid_parameters;
+    multigrid_parameters.direct_coarse = false;
+    multigrid_parameters.num_sweeps_pre = 3;
+    multigrid_parameters.num_sweeps_post = 3;
+
+    typename solver_type::params parameters;
+    parameters.basis_size = 25;
+    parameters.batch_size = 5;
+    parameters.orthogonalization = "mgs";
+    parameters.reorthogonalization_policy = "always";
+    parameters.max_orthogonalization_passes = 2;
+    parameters.monitor.rel_tol = 1e-10;
+    parameters.monitor.abs_tol = 1e-12;
+    parameters.monitor.max_iters_num = 300;
+    parameters.monitor.divide_out_norms_by_rel_base = false;
+
+    for(const char side : {'L', 'R'})
     {
-        log.error_f("Got error = %e.", error ) ;
-    }
-    else
-    {
-        log.info("No errors.") ;   
+        auto multigrid =
+            std::make_shared<multigrid_type>(
+                multigrid_utils,
+                multigrid_parameters);
+        parameters.preconditioner_side = side;
+        solver_type solver(
+            matrix_operator,
+            vector_space,
+            nullptr,
+            parameters,
+            multigrid,
+            regularization);
+        vector_space_type::vector_type solution(dimension, 0.0);
+        const bool converged = solver.solve(rhs, solution);
+        const std::string label =
+            "multigrid " + std::string(1, side);
+        test.require(converged, label + " converges");
+        const auto initial_residual = relative_residual(
+            *vector_space,
+            *matrix_operator,
+            rhs,
+            solution);
+        if(initial_residual > physical_residual_tolerance)
+            std::cout << label
+                      << " physical residual = " << initial_residual << '\n';
+        test.require(
+            initial_residual <= physical_residual_tolerance,
+            label + " physical residual");
+        test.require(
+            std::abs(vector_space->sum(solution)) <= 2e-8,
+            label + " zero-mean solution");
+
+        vector_space->scale(0.99999, solution);
+        test.require(
+            solver.solve(rhs, solution),
+            label + " reused initial guess converges");
+        const auto reused_residual = relative_residual(
+            *vector_space,
+            *matrix_operator,
+            rhs,
+            solution);
+        if(reused_residual > physical_residual_tolerance)
+            std::cout << label
+                      << " reused physical residual = " << reused_residual
+                      << '\n';
+        test.require(
+            reused_residual <= physical_residual_tolerance,
+            label + " reused physical residual");
     }
 
-    return error;
+    return test.finish("NMFD GMRES multigrid tests");
 }

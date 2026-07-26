@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  cpu-tests:
+    name: ${{ matrix.compiler }} / ${{ matrix.test.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - gcc
+          - clang
+        test:
+          - name: public-headers
+            target: check_public_headers_cpu
+          - name: orthogonalization
+            target: check_orthogonalization_cpu
+          - name: arnoldi
+            target: check_arnoldi_cpu
+          - name: monitor
+            target: check_monitor_cpu
+          - name: gmres-core
+            target: check_gmres_core_cpu
+          - name: gmres-legacy
+            target: check_gmres_legacy_cpu
+          - name: gmres-multigrid
+            target: check_gmres_mg_cpu
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install compiler
+        run: |
+          sudo apt-get update
+          packages=(build-essential make)
+          if [[ "${{ matrix.compiler }}" == "clang" ]]; then
+            packages+=(clang libomp-dev)
+          fi
+          sudo apt-get install -y --no-install-recommends "${packages[@]}"
+
+      - name: Build and test
+        run: |
+          make "${{ matrix.test.target }}" \
+            CONFIG_FILE="build_configs/config_github_ubuntu_${{ matrix.compiler }}.inc" \
+            BUILD_DIR="build/${{ matrix.compiler }}/${{ matrix.test.name }}" \
+            TEST_OMP_NUM_THREADS=2
+
+  sanitizers:
+    name: GCC / ASan + UBSan
+    needs: cpu-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential make
+
+      - name: Build and test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          make run_tests_cpu \
+            CONFIG_FILE=build_configs/config_github_ubuntu_sanitizers.inc \
+            BUILD_DIR=build/sanitizers \
+            TEST_OMP_NUM_THREADS=2

@@ -18,6 +18,7 @@
 #define __NMFD_DEFAULT_MONITOR_H__
 
 #include <cmath>
+#include <memory>
 #include <vector>
 #include <utility>
 #ifdef NMFD_ENABLE_NLOHMANN
@@ -45,6 +46,7 @@ class default_monitor : public scfd::utils::logged_obj_base<Log>
 {
 public:
     using scalar_type = typename VectorOperations::scalar_type;
+    using norm_type = typename VectorOperations::norm_type;
     using vector_type = typename VectorOperations::vector_type;
     using vector_operations_type = VectorOperations;
     using logged_obj_type = scfd::utils::logged_obj_base<Log>;
@@ -52,8 +54,8 @@ public:
     using custom_funcs_ptr = std::shared_ptr<custom_funcs_type>;
 
 private:
-    using T = scalar_type;
-    using buf_arr_t = detail::vector_wrap<VectorOperations,true,false>;
+    using T = norm_type;
+    using buf_arr_t = nmfd::detail::vector_wrap<VectorOperations,true,false>;
     const vector_operations_type &vec_ops_;
 
 public:
@@ -159,7 +161,7 @@ public:
     //TODO add separate function to control tolerances and behaviour
     void set_temp_tolerance(T rel_tol)
     {
-        rel_tol_save_ = rel_tol;
+        rel_tol_save_ = prms_.rel_tol;
         prms_.rel_tol = rel_tol;   
     }
     void restore_tolerance()
@@ -215,21 +217,27 @@ public:
     T resid_norm()const { return resid_norm_; }
     T resid_norm_out()const 
     { 
-        if (!divide_out_norms_by_rel_base())
+        if (
+            !divide_out_norms_by_rel_base() ||
+            !(rel_tol_base() > T{}))
             return resid_norm(); 
         else
             return resid_norm()/rel_tol_base();
     }
     T tol_out()const 
     { 
-        if (!divide_out_norms_by_rel_base())
+        if (
+            !divide_out_norms_by_rel_base() ||
+            !(rel_tol_base() > T{}))
             return tol(); 
         else
             return tol()/rel_tol_base();
     }
     T norm_out(T norm_abs)const 
     { 
-        if (!divide_out_norms_by_rel_base())
+        if (
+            !divide_out_norms_by_rel_base() ||
+            !(rel_tol_base() > T{}))
             return norm_abs; 
         else
             return norm_abs/rel_tol_base();

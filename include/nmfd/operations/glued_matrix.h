@@ -17,6 +17,7 @@
 #ifndef __GLUED_MATRIX_H__
 #define __GLUED_MATRIX_H__
 
+#include <array>
 #include <memory>
 
 namespace scfd

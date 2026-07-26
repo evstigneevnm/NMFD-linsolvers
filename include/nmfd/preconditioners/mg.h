@@ -257,7 +257,6 @@ private:
         
         auto c = algo_hierarchy_creator<coarsening_type>::get(utils_.coarsening,prm_.coarsening);
 
-        int lev_i = 0;
         auto curr_op = op;
         while( !c->coarse_enough(*curr_op) ) 
         {
@@ -270,7 +269,6 @@ private:
                 //TODO output to file
             }
             curr_op = levs_.back().create_next(*c);
-            lev_i++;
             if (!curr_op) return;
         }
 

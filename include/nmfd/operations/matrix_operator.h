@@ -18,6 +18,7 @@
 #define __MATRIX_OPERATOR_H__
 
 #include <memory>
+#include <utility>
 
 namespace scfd
 {

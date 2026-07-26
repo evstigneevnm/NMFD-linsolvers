@@ -26,7 +26,9 @@ namespace detail
 
 struct params_hierarchy_dummy
 {
-    params_hierarchy_dummy(const std::string &log_prefix = "", const std::string &log_name = "")
+    params_hierarchy_dummy(
+        const std::string& = "",
+        const std::string& = "")
     {
     }
     #ifdef NMFD_ENABLE_NLOHMANN
