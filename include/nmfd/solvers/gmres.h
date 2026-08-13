@@ -20,14 +20,18 @@
 #include <stdexcept>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 #ifdef NMFD_ENABLE_NLOHMANN
 #include <nlohmann/json.hpp>
 #endif
 #include "detail/monitor_call_wrap.h"
 #include <nmfd/detail/algo_utils_hierarchy.h>
+#include <nmfd/detail/algo_utils_hierarchy_factory.h>
 #include <nmfd/detail/algo_params_hierarchy.h>
 #include <nmfd/detail/algo_hierarchy_creator.h>
 #include <nmfd/operations/linalg/host_small_dense_backend.h>
@@ -214,6 +218,31 @@ public:
             utils(args...),
             preconditioner(preconditioner_)
         {        
+        }
+
+        template<
+            class Backend,
+            class ResidualRegularizationForConstruction =
+                residual_regulaization_t,
+            class DenseOperationsForConstruction = dense_operations_t,
+            std::enable_if_t<
+                std::is_default_constructible_v<
+                    ResidualRegularizationForConstruction> &&
+                std::is_default_constructible_v<
+                    DenseOperationsForConstruction>,
+                int> = 0>
+        utils_hierarchy(
+            Backend& backend,
+            std::shared_ptr<vector_operations_type> vec_space)
+            : utils(
+                  vec_space,
+                  std::addressof(backend.log()),
+                  std::make_shared<residual_regulaization_t>(),
+                  std::make_shared<dense_operations_t>()),
+              preconditioner(
+                  nmfd::detail::make_algo_utils_hierarchy<
+                      preconditioner_type>(backend, std::move(vec_space)))
+        {
         }
     };
 

@@ -5,10 +5,13 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <scfd/utils/log.h>
 
+#include <nmfd/detail/algo_utils_hierarchy_factory.h>
 #include <nmfd/solvers/gmres.h>
 #include <nmfd/solvers/monitor_krylov.h>
 
@@ -18,6 +21,83 @@
 
 namespace
 {
+
+class hierarchy_test_backend
+{
+public:
+    scfd::utils::log_std& log()
+    {
+        return log_;
+    }
+
+private:
+    scfd::utils::log_std log_;
+};
+
+template<class VectorSpace>
+struct backend_aware_hierarchy_algorithm
+{
+    struct utils_hierarchy
+    {
+        std::shared_ptr<VectorSpace> vector_space;
+        const void* log_address = nullptr;
+
+        utils_hierarchy() = default;
+
+        template<class Backend>
+        utils_hierarchy(
+            Backend& backend,
+            std::shared_ptr<VectorSpace> vector_space_)
+            : vector_space(std::move(vector_space_)),
+              log_address(
+                  static_cast<const void*>(std::addressof(backend.log())))
+        {
+        }
+    };
+};
+
+template<class VectorSpace>
+struct vector_space_hierarchy_algorithm
+{
+    struct utils_hierarchy
+    {
+        std::shared_ptr<VectorSpace> vector_space;
+
+        utils_hierarchy() = default;
+
+        explicit utils_hierarchy(
+            std::shared_ptr<VectorSpace> vector_space_)
+            : vector_space(std::move(vector_space_))
+        {
+        }
+    };
+};
+
+template<class LinearSolver>
+struct recursive_hierarchy_consumer
+{
+    struct utils_hierarchy
+    {
+        typename LinearSolver::utils_hierarchy linear_solver;
+
+        template<class Backend, class VectorSpace>
+        utils_hierarchy(
+            Backend& backend,
+            std::shared_ptr<VectorSpace> vector_space)
+            : linear_solver(backend, std::move(vector_space))
+        {
+        }
+    };
+};
+
+struct explicitly_constructed_residual_regularization
+{
+    explicitly_constructed_residual_regularization() = delete;
+
+    explicit explicitly_constructed_residual_regularization(int)
+    {
+    }
+};
 
 template<class Scalar>
 std::vector<Scalar> multiply(
@@ -413,6 +493,159 @@ void test_initial_solution_and_parameters(nmfd::tests::test_harness& test)
     require_invalid(invalid, "invalid reorthogonalization rejected");
 }
 
+void test_utils_hierarchy_construction(nmfd::tests::test_harness& test)
+{
+    using vector_space_type =
+        nmfd::tests::cpu_reference_vector_space<double>;
+    using operator_type = nmfd::tests::analytical_operator<vector_space_type>;
+    using log_type = scfd::utils::log_std;
+    using monitor_type =
+        nmfd::solvers::monitor_krylov<vector_space_type, log_type>;
+    using solver_type =
+        nmfd::solvers::gmres<
+            vector_space_type,
+            monitor_type,
+            log_type,
+            operator_type>;
+
+    hierarchy_test_backend backend;
+    auto vector_space = std::make_shared<vector_space_type>(2);
+
+    using backend_algorithm =
+        backend_aware_hierarchy_algorithm<vector_space_type>;
+    const auto backend_utils =
+        nmfd::detail::make_algo_utils_hierarchy<backend_algorithm>(
+            backend,
+            vector_space);
+    test.require(
+        backend_utils.vector_space == vector_space,
+        "hierarchy factory forwards vector space to backend-aware utilities");
+    test.require(
+        backend_utils.log_address ==
+            static_cast<const void*>(std::addressof(backend.log())),
+        "hierarchy factory prefers backend-aware construction");
+
+    using vector_space_algorithm =
+        vector_space_hierarchy_algorithm<vector_space_type>;
+    const auto vector_space_utils =
+        nmfd::detail::make_algo_utils_hierarchy<vector_space_algorithm>(
+            backend,
+            vector_space);
+    test.require(
+        vector_space_utils.vector_space == vector_space,
+        "hierarchy factory falls back to vector-space construction");
+
+    typename solver_type::utils_hierarchy solver_utils(
+        backend,
+        vector_space);
+    test.require(
+        solver_utils.vec_ops == vector_space,
+        "GMRES hierarchy stores the supplied vector space");
+    test.require(
+        solver_utils.log == std::addressof(backend.log()),
+        "GMRES hierarchy uses the backend logger");
+    test.require(
+        static_cast<bool>(solver_utils.residual_reg),
+        "GMRES hierarchy creates residual regularization utilities");
+    test.require(
+        static_cast<bool>(solver_utils.dense_ops),
+        "GMRES hierarchy creates dense utilities");
+    test.require(
+        solver_utils.preconditioner.ops == vector_space,
+        "GMRES hierarchy recursively creates preconditioner utilities");
+
+    typename recursive_hierarchy_consumer<solver_type>::utils_hierarchy
+        recursive_utils(backend, vector_space);
+    test.require(
+        recursive_utils.linear_solver.vec_ops == vector_space,
+        "Newton-style recursive hierarchy constructs GMRES utilities");
+    test.require(
+        recursive_utils.linear_solver.preconditioner.ops == vector_space,
+        "Newton-style recursive hierarchy constructs nested utilities");
+
+    auto explicit_residual =
+        std::make_shared<typename solver_type::residual_regulaization_t>();
+    auto explicit_dense =
+        std::make_shared<typename solver_type::dense_operations_t>();
+    typename solver_type::preconditioner_utils_hierarchy_type
+        explicit_preconditioner(vector_space);
+    typename solver_type::utils_hierarchy explicit_utils(
+        explicit_preconditioner,
+        vector_space,
+        std::addressof(backend.log()),
+        explicit_residual,
+        explicit_dense);
+    test.require(
+        explicit_utils.residual_reg == explicit_residual,
+        "explicit hierarchy preserves residual regularization resources");
+    test.require(
+        explicit_utils.dense_ops == explicit_dense,
+        "explicit hierarchy preserves dense resources");
+
+    using explicit_resource_solver_type =
+        nmfd::solvers::gmres<
+            vector_space_type,
+            monitor_type,
+            log_type,
+            operator_type,
+            nmfd::preconditioners::dummy<
+                vector_space_type,
+                operator_type>,
+            explicitly_constructed_residual_regularization>;
+    test.require(
+        !std::is_constructible_v<
+            typename explicit_resource_solver_type::utils_hierarchy,
+            hierarchy_test_backend&,
+            std::shared_ptr<vector_space_type>>,
+        "backend convenience construction is disabled for explicit-only "
+        "resources");
+    auto explicit_only_residual =
+        std::make_shared<explicitly_constructed_residual_regularization>(1);
+    typename explicit_resource_solver_type::preconditioner_utils_hierarchy_type
+        explicit_only_preconditioner(vector_space);
+    typename explicit_resource_solver_type::utils_hierarchy
+        explicit_only_utils(
+            explicit_only_preconditioner,
+            vector_space,
+            std::addressof(backend.log()),
+            explicit_only_residual,
+            std::make_shared<
+                typename explicit_resource_solver_type::dense_operations_t>());
+    test.require(
+        explicit_only_utils.residual_reg == explicit_only_residual,
+        "explicit-only resources remain injectable");
+
+    auto matrix_operator =
+        std::make_shared<operator_type>(
+            *vector_space,
+            std::vector<double>{2.0, 0.0, 0.0, 4.0});
+    vector_space_type::vector_type rhs{1.0, -2.0};
+    vector_space_type::vector_type solution(2, 0.0);
+    typename solver_type::params_hierarchy parameters;
+    parameters.basis_size = 2;
+    parameters.batch_size = 1;
+    parameters.monitor.rel_tol = 1e-12;
+    parameters.monitor.abs_tol = 1e-14;
+    parameters.monitor.max_iters_num = 10;
+    parameters.monitor.divide_out_norms_by_rel_base = false;
+
+    solver_type solver(solver_utils, parameters);
+    solver.set_operator(matrix_operator);
+    test.require(
+        solver.solve(rhs, solution),
+        "GMRES created from recursive utilities solves a system");
+    test.require_close(
+        solution[0],
+        0.5,
+        1e-12,
+        "hierarchy-created GMRES solution component 0");
+    test.require_close(
+        solution[1],
+        -0.5,
+        1e-12,
+        "hierarchy-created GMRES solution component 1");
+}
+
 } // namespace
 
 int main()
@@ -423,5 +656,6 @@ int main()
     test_preconditioners(test);
     test_failure_paths(test);
     test_initial_solution_and_parameters(test);
+    test_utils_hierarchy_construction(test);
     return test.finish("NMFD GMRES core tests");
 }

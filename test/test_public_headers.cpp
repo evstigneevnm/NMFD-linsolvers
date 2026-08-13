@@ -1,6 +1,7 @@
 #include <nmfd/detail/algo_hierarchy_creator.h>
 #include <nmfd/detail/algo_params_hierarchy.h>
 #include <nmfd/detail/algo_utils_hierarchy.h>
+#include <nmfd/detail/algo_utils_hierarchy_factory.h>
 #include <nmfd/detail/params_hierarchy_dummy.h>
 #include <nmfd/detail/solver_traits.h>
 #include <nmfd/detail/utils_hierarchy_dummy.h>
