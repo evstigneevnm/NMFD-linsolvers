@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <scfd/utils/logged_obj_base.h>
+#include <nmfd/detail/operator_update.h>
 #include "detail/default_prec_creator.h"
 
 namespace nmfd
@@ -81,11 +82,22 @@ public:
     
     virtual void set_operator(std::shared_ptr<const linear_operator_type> A)
     {
-        A_ = std::move(A);
-        if (prec_ != nullptr) 
+        auto candidate = std::move(A);
+        if (prec_ != nullptr)
         {
-            prec_->set_operator(A_);
+            prec_->set_operator(candidate);
         }
+        A_ = std::move(candidate);
+    }
+
+    virtual void update_operator(std::shared_ptr<const linear_operator_type> A)
+    {
+        auto candidate = std::move(A);
+        if (prec_ != nullptr)
+        {
+            nmfd::detail::update_operator_or_set(*prec_, candidate);
+        }
+        A_ = std::move(candidate);
     }
     
     virtual bool solve(const vector_type &b, vector_type &x)const = 0;

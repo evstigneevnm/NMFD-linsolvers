@@ -18,6 +18,7 @@
 #define __NMFD_PRECONDITIONER_INTERFACE_H__
 
 #include <memory>
+#include <utility>
 #include <nmfd/detail/algo_utils_hierarchy.h>
 #include <nmfd/detail/algo_params_hierarchy.h>
 #include <nmfd/detail/algo_hierarchy_creator.h>
@@ -43,6 +44,10 @@ public:
     {
     }
     virtual void set_operator(std::shared_ptr<const operator_type> op) = 0;
+    virtual void update_operator(std::shared_ptr<const operator_type> op)
+    {
+        set_operator(std::move(op));
+    }
     virtual void apply(const vector_type &rhs, vector_type &x) const = 0;
     /// inplace version for preconditioner interface
     virtual void apply(vector_type &x) const = 0;
