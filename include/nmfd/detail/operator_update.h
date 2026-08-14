@@ -17,17 +17,15 @@ struct has_update_operator : std::false_type
 
 template <class Algorithm, class Operator>
 struct has_update_operator<
-    Algorithm,
-    Operator,
-    std::void_t<decltype( std::declval<Algorithm &>().update_operator(
-        std::declval<std::shared_ptr<const Operator>>() ) )>> : std::true_type
+    Algorithm, Operator,
+    std::void_t<
+        decltype( std::declval<Algorithm &>().update_operator( std::declval<std::shared_ptr<const Operator>>() ) )>>
+    : std::true_type
 {
 };
 
 template <class Algorithm, class Operator>
-void update_operator_or_set(
-    Algorithm &algorithm,
-    std::shared_ptr<const Operator> op )
+void update_operator_or_set( Algorithm &algorithm, std::shared_ptr<const Operator> op )
 {
     if constexpr ( has_update_operator<Algorithm, Operator>::value )
         algorithm.update_operator( std::move( op ) );

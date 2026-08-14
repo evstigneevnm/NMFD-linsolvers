@@ -11,20 +11,21 @@ namespace tests
 {
 
 
-template<class LinearOperator, class Log> 
+template <class LinearOperator, class Log>
 class coarsening
 {
 public:
-    using operator_type = LinearOperator;
+    using operator_type     = LinearOperator;
     using vector_space_type = typename operator_type::vector_space_type;
-    using restrictor_type = restrictor<vector_space_type,Log>;
-    using prolongator_type = prolongator<vector_space_type,Log>;
+    using restrictor_type   = restrictor<vector_space_type, Log>;
+    using prolongator_type  = prolongator<vector_space_type, Log>;
+
 public:
     struct statistics
     {
-        std::size_t construction_calls = 0;
-        std::size_t next_level_calls = 0;
-        std::size_t coarse_operator_calls = 0;
+        std::size_t construction_calls           = 0;
+        std::size_t next_level_calls             = 0;
+        std::size_t coarse_operator_calls        = 0;
         std::size_t update_coarse_operator_calls = 0;
     };
 
@@ -38,47 +39,37 @@ public:
     };
     using utils_hierarchy = utils;
 
-    coarsening(const utils_hierarchy& utils, const params_hierarchy&) :
-        counters_(utils.counters)
+    coarsening( const utils_hierarchy &utils, const params_hierarchy & ) : counters_( utils.counters )
     {
         ++counters_->construction_calls;
     }
 
-    std::tuple<std::shared_ptr<restrictor_type>,std::shared_ptr<prolongator_type>> 
-    next_level(const operator_type &op)
+    std::tuple<std::shared_ptr<restrictor_type>, std::shared_ptr<prolongator_type>>
+    next_level( const operator_type &op )
     {
         ++counters_->next_level_calls;
-        return 
-            std::make_tuple(
-                std::make_shared<restrictor_type>(op.get_size()),
-                std::make_shared<prolongator_type>(op.get_size())
-            );
-
-    }
-    std::shared_ptr<operator_type> 
-    coarse_operator(
-        const operator_type& op,
-        const restrictor_type&,
-        const prolongator_type&)
-    {
-        ++counters_->coarse_operator_calls;
-        return std::make_shared<operator_type>(op.get_size()/2);
+        return std::make_tuple(
+            std::make_shared<restrictor_type>( op.get_size() ), std::make_shared<prolongator_type>( op.get_size() )
+        );
     }
     std::shared_ptr<operator_type>
-    update_coarse_operator(
-        const operator_type& op,
-        const restrictor_type&,
-        const prolongator_type&,
-        std::shared_ptr<const operator_type>)
+    coarse_operator( const operator_type &op, const restrictor_type &, const prolongator_type & )
+    {
+        ++counters_->coarse_operator_calls;
+        return std::make_shared<operator_type>( op.get_size() / 2 );
+    }
+    std::shared_ptr<operator_type> update_coarse_operator(
+        const operator_type &op, const restrictor_type &, const prolongator_type &, std::shared_ptr<const operator_type>
+    )
     {
         ++counters_->update_coarse_operator_calls;
-        return std::make_shared<operator_type>(op.get_size()/2);
+        return std::make_shared<operator_type>( op.get_size() / 2 );
     }
-    bool same_structure(const operator_type &left, const operator_type &right) const
+    bool same_structure( const operator_type &left, const operator_type &right ) const
     {
         return left.get_size() == right.get_size();
     }
-    bool coarse_enough(const operator_type &op)const
+    bool coarse_enough( const operator_type &op ) const
     {
         return op.get_size() <= 2;
     }

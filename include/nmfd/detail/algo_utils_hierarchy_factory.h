@@ -28,40 +28,32 @@ namespace nmfd
 namespace detail
 {
 
-template<class...>
+template <class...>
 struct algo_utils_hierarchy_factory_dependent_false : std::false_type
 {
 };
 
-template<class Algorithm, class Backend, class VectorSpace>
-typename algo_utils_hierarchy<Algorithm>::type make_algo_utils_hierarchy(
-    Backend& backend,
-    std::shared_ptr<VectorSpace> vector_space)
+template <class Algorithm, class Backend, class VectorSpace>
+typename algo_utils_hierarchy<Algorithm>::type
+make_algo_utils_hierarchy( Backend &backend, std::shared_ptr<VectorSpace> vector_space )
 {
     using utils_type = typename algo_utils_hierarchy<Algorithm>::type;
 
-    if constexpr(std::is_constructible_v<
-                     utils_type,
-                     Backend&,
-                     std::shared_ptr<VectorSpace>>)
+    if constexpr ( std::is_constructible_v<utils_type, Backend &, std::shared_ptr<VectorSpace>> )
     {
-        return utils_type(backend, std::move(vector_space));
+        return utils_type( backend, std::move( vector_space ) );
     }
-    else if constexpr(std::is_constructible_v<
-                          utils_type,
-                          std::shared_ptr<VectorSpace>>)
+    else if constexpr ( std::is_constructible_v<utils_type, std::shared_ptr<VectorSpace>> )
     {
-        return utils_type(std::move(vector_space));
+        return utils_type( std::move( vector_space ) );
     }
     else
     {
         static_assert(
-            algo_utils_hierarchy_factory_dependent_false<
-                Algorithm,
-                Backend,
-                VectorSpace>::value,
+            algo_utils_hierarchy_factory_dependent_false<Algorithm, Backend, VectorSpace>::value,
             "Algorithm utilities cannot be constructed from a backend and "
-            "vector space; provide the utility hierarchy explicitly");
+            "vector space; provide the utility hierarchy explicitly"
+        );
     }
 }
 

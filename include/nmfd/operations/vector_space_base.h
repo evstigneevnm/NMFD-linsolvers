@@ -9,13 +9,12 @@ namespace nmfd
 namespace operations
 {
 
-template<class Type, class VectorType, class MultiVectorType, class Ordinal = std::ptrdiff_t>
-class vector_space_base : 
-    public vector_factory_base<Type,VectorType,MultiVectorType,Ordinal>,
-    public vector_operations_base<Type,VectorType,MultiVectorType,Ordinal>
+template <class Type, class VectorType, class MultiVectorType, class Ordinal = std::ptrdiff_t>
+class vector_space_base : public vector_factory_base<Type, VectorType, MultiVectorType, Ordinal>,
+                          public vector_operations_base<Type, VectorType, MultiVectorType, Ordinal>
 {
 public:
-    vector_space_base() = default;
+    vector_space_base()          = default;
     virtual ~vector_space_base() = default;
 };
 

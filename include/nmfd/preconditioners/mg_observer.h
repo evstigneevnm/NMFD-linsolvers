@@ -22,12 +22,8 @@ enum class mg_cycle_event
 
 struct null_mg_observer
 {
-    template<class VectorSpace, class Vector>
-    void on_event(
-        std::size_t,
-        mg_cycle_event,
-        const VectorSpace&,
-        const Vector&) const noexcept
+    template <class VectorSpace, class Vector>
+    void on_event( std::size_t, mg_cycle_event, const VectorSpace &, const Vector & ) const noexcept
     {
     }
 };
