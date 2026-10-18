@@ -7,6 +7,7 @@
 #include <nmfd/detail/utils_hierarchy_dummy.h>
 #include <nmfd/detail/vector_wrap.h>
 #include <nmfd/operations/glued_matrix.h>
+#include <nmfd/operations/glued_matrix_operator.h>
 #include <nmfd/operations/linalg/host_small_dense_backend.h>
 #include <nmfd/operations/matrix_operator.h>
 #include <nmfd/operations/vector_factory_base.h>

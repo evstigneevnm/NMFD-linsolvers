@@ -2,6 +2,15 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      run_cuda:
+        description: Run operations integration on a self-hosted CUDA runner
+        type: boolean
+        default: false
+      cuda_arch:
+        description: CUDA compute capability without a decimal point
+        type: string
+        default: '75'
   push:
   pull_request:
 
@@ -16,6 +25,7 @@ jobs:
   cpu-tests:
     name: ${{ matrix.compiler }} / ${{ matrix.test.name }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -37,6 +47,8 @@ jobs:
             target: check_gmres_legacy_cpu
           - name: gmres-multigrid
             target: check_gmres_mg_cpu
+          - name: operations-integration
+            target: check_operations_cpu
     steps:
       - uses: actions/checkout@v6
         with:
@@ -62,6 +74,7 @@ jobs:
     name: GCC / ASan + UBSan
     needs: cpu-tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
@@ -81,3 +94,17 @@ jobs:
             CONFIG_FILE=build_configs/config_github_ubuntu_sanitizers.inc \
             BUILD_DIR=build/sanitizers \
             TEST_OMP_NUM_THREADS=2
+
+  cuda:
+    name: CUDA / operations integration
+    if: github.event_name == 'workflow_dispatch' && inputs.run_cuda
+    runs-on: [self-hosted, linux, cuda]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Build and test
+        env:
+          CUDA_ARCH: ${{ inputs.cuda_arch }}
+        run: make check_operations_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"

@@ -1,8 +1,10 @@
 # NMFD Linear Solvers
 
 Template-based linear solvers, Krylov building blocks, preconditioners, and
-linear-space interfaces. SCFD supplies the portable backend and utility layer
-through the pinned `contrib/scfd` submodule.
+linear-space interfaces. The pinned `contrib/nmfd-operations` dependency owns vector
+spaces, operations, block operators, small dense algebra, and `vector_wrap`.
+SCFD supplies backend primitives and utilities; builds default to the SCFD revision
+pinned by NMFD-operations, so only one SCFD include tree is used.
 
 ## Building And Testing
 
@@ -27,9 +29,9 @@ make check_gmres_core_cpu \
   BUILD_DIR=build/gcc
 ```
 
-An external SCFD checkout can be selected with `SCFD_ROOT=/path/to/scfd`.
-Otherwise, the pinned `contrib/scfd` checkout is used. Available standalone
-checks are:
+External checkouts can be selected with `NMFD_OPERATIONS_ROOT=/path/to/nmfd-operations`
+and `SCFD_ROOT=/path/to/scfd`. The historical direct `contrib/scfd` submodule is
+retained, but is not the default include tree. Available standalone checks are:
 
 - `check_public_headers_cpu`
 - `check_orthogonalization_cpu`
@@ -38,12 +40,25 @@ checks are:
 - `check_gmres_core_cpu`
 - `check_gmres_legacy_cpu`
 - `check_gmres_mg_cpu`
+- `check_operations_cpu`
+
+The operations-integration test uses canonical dense, activation-time SCFD, and
+glued spaces with real and complex scalars. It verifies true GMRES residuals,
+repeated solves, precision modes, and left/right preconditioning settings.
+
+CUDA is optional and never required for CPU targets:
+
+```bash
+make check_operations_cuda BUILD_DIR=build/cuda CUDA_ARCH=75
+```
 
 GitHub Actions runs every check as an independent GCC and Clang matrix job.
 AddressSanitizer and UndefinedBehaviorSanitizer run after the CPU matrix passes.
-The public-header check compiles each standalone header in isolation.
-`glued_matrix_operator.h` remains a documented legacy exception until the
-parent project's glued-vector operations are migrated into NMFD.
+The public-header check compiles each solver header in isolation, without any
+legacy exceptions. The combined header test also includes shared operations and
+the migrated glued-matrix operator. No parent-project include paths are required.
+An optional workflow dispatch runs the CUDA integration test on a self-hosted
+runner labeled `cuda`.
 
 # Basic interfaces
 
