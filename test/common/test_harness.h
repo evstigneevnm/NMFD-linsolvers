@@ -17,39 +17,30 @@ namespace tests
 class test_harness
 {
 public:
-    void require(bool condition, const std::string& message)
+    void require( bool condition, const std::string &message )
     {
         ++checks_;
-        if(!condition)
+        if ( !condition )
         {
             ++failures_;
             std::cout << "FAIL " << message << '\n';
         }
     }
 
-    template<class Actual, class Expected>
-    void require_close(
-        const Actual& actual,
-        const Expected& expected,
-        double tolerance,
-        const std::string& message)
+    template <class Actual, class Expected>
+    void require_close( const Actual &actual, const Expected &expected, double tolerance, const std::string &message )
     {
         using std::abs;
-        const auto error = abs(actual - expected);
-        const auto scale = std::max(
-            {1.0, static_cast<double>(abs(actual)),
-             static_cast<double>(abs(expected))});
-        require(
-            static_cast<double>(error) <= tolerance*scale,
-            message);
+        const auto error = abs( actual - expected );
+        const auto scale =
+            std::max( { 1.0, static_cast<double>( abs( actual ) ), static_cast<double>( abs( expected ) ) } );
+        require( static_cast<double>( error ) <= tolerance * scale, message );
     }
 
-    int finish(const std::string& label) const
+    int finish( const std::string &label ) const
     {
-        std::cout
-            << "Checks: " << checks_
-            << ", failures: " << failures_ << '\n';
-        if(failures_ != 0)
+        std::cout << "Checks: " << checks_ << ", failures: " << failures_ << '\n';
+        if ( failures_ != 0 )
         {
             std::cout << label << ": FAILED\n";
             return EXIT_FAILURE;
@@ -69,7 +60,7 @@ public:
     }
 
 private:
-    std::size_t checks_ = 0;
+    std::size_t checks_   = 0;
     std::size_t failures_ = 0;
 };
 

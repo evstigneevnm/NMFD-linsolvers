@@ -308,3 +308,25 @@ class mg
 {
 };
 ```
+
+`set_operator(op)` and `update_operator(op)` have intentionally different
+contracts:
+
+- `set_operator` accepts a new discrete structure and rebuilds the complete
+  hierarchy, including restriction and prolongation operators.
+- `update_operator` requires the same structure and preserves hierarchy
+  topology. It refreshes the fine and coarse operator values, smoothers, and
+  coarse solver numerical data.
+
+A coarsening policy can provide
+`same_structure(current, updated)` for validation and
+`update_coarse_operator(fine, restrictor, prolongator, current_coarse)` for an
+efficient numerical Galerkin update. If the update hook is absent, MG falls
+back to `coarse_operator` while retaining the existing transfer operators.
+This fallback preserves source compatibility; AMG implementations should
+provide the update hook to reuse symbolic sparsity and interpolation data.
+The coarsening policy object is retained across numerical updates, allowing it
+to own symbolic Galerkin maps and other AMG setup metadata.
+
+Smoothers and coarse solvers may likewise provide `update_operator`. Components
+without it fall back to `set_operator`.

@@ -21,25 +21,23 @@
 
 namespace nmfd
 {
-namespace detail 
+namespace detail
 {
 
 struct params_hierarchy_dummy
 {
-    params_hierarchy_dummy(
-        const std::string& = "",
-        const std::string& = "")
+    params_hierarchy_dummy( const std::string & = "", const std::string & = "" )
     {
     }
-    #ifdef NMFD_ENABLE_NLOHMANN
-    void from_json(const nlohmann::json& j)
+#ifdef NMFD_ENABLE_NLOHMANN
+    void from_json( const nlohmann::json &j )
     {
     }
     nlohmann::json to_json() const
     {
         return nlohmann::json();
     }
-    #endif
+#endif
 };
 
 } // namespace detail
