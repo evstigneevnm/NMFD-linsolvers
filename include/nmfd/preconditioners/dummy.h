@@ -61,6 +61,10 @@ public:
         utils( std::shared_ptr<vector_operations_type> ops_ = nullptr ) : ops( std::move( ops_ ) )
         {
         }
+        template <class Backend>
+        utils( Backend &, std::shared_ptr<vector_operations_type> ops_ ) : utils( std::move( ops_ ) )
+        {
+        }
     };
     using utils_hierarchy = utils;
 

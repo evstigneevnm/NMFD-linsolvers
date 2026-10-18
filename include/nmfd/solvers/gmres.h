@@ -75,6 +75,7 @@ public:
     using linear_operator_type     = LinearOperator;
     using preconditioner_type      = Preconditioner;
     using vector_operations_type   = VectorOperations;
+    using vector_space_type        = VectorOperations;
     using dense_operations_t       = DenseOperations;
     using monitor_type             = Monitor;
     using log_type                 = Log;
@@ -153,6 +154,11 @@ public:
             std::shared_ptr<dense_operations_t>       dense_ops_    = std::make_shared<dense_operations_t>()
         )
             : vec_ops( vec_ops_ ), log( log_ ), residual_reg( residual_reg_ ), dense_ops( dense_ops_ )
+        {
+        }
+        template <class Backend>
+        utils( Backend &backend, std::shared_ptr<vector_operations_type> vec_space )
+            : utils( std::move( vec_space ), std::addressof( backend.log() ) )
         {
         }
     };
