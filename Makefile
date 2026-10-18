@@ -34,6 +34,11 @@ TEST_GMRES_LEGACY := $(BUILD_DIR)/test_gmres_legacy_cpu.bin
 TEST_GMRES_MG := $(BUILD_DIR)/test_gmres_mg_cpu.bin
 TEST_OPERATIONS := $(BUILD_DIR)/test_operations_integration_cpu.bin
 TEST_OPERATIONS_CUDA := $(BUILD_DIR)/test_operations_integration_cuda.bin
+SHORT_SOLVERS := bicgstab bicgstabl cgs
+SHORT_CPU_TESTS := $(addprefix $(BUILD_DIR)/test_,$(addsuffix _cpu.bin,$(SHORT_SOLVERS)))
+SHORT_BACKEND_TESTS := $(addprefix $(BUILD_DIR)/test_,$(addsuffix _backend_cpu.bin,$(SHORT_SOLVERS)))
+JSON_INCLUDE ?=
+JSON_FLAGS := $(if $(JSON_INCLUDE),-I$(JSON_INCLUDE))
 
 CPU_TESTS := \
 	$(TEST_PUBLIC_HEADERS) \
@@ -43,7 +48,7 @@ CPU_TESTS := \
 	$(TEST_GMRES_CORE) \
 	$(TEST_GMRES_LEGACY) \
 	$(TEST_GMRES_MG) \
-	$(TEST_OPERATIONS)
+	$(TEST_OPERATIONS) $(SHORT_CPU_TESTS) $(SHORT_BACKEND_TESTS)
 
 .PHONY: \
 	all \
@@ -62,6 +67,29 @@ CPU_TESTS := \
 	check_dependencies
 
 all: tests_cpu
+
+$(BUILD_DIR)/test_%_cpu.bin: test/solvers/test_%.cpp test/common/short_recurrence_tests.h $(TEST_HEADERS) | $(BUILD_DIR) check_dependencies
+	$(HOST_CXX) $(CXXFLAGS) $< $(OPENMP_FLAGS) $(LDFLAGS) -o $@
+
+$(BUILD_DIR)/test_%_json_cpu.bin: test/solvers/test_%.cpp test/common/short_recurrence_tests.h $(TEST_HEADERS) | $(BUILD_DIR) check_dependencies
+	$(HOST_CXX) $(CXXFLAGS) $(JSON_FLAGS) -DNMFD_ENABLE_NLOHMANN $< $(OPENMP_FLAGS) $(LDFLAGS) -o $@
+
+$(SHORT_BACKEND_TESTS): $(BUILD_DIR)/test_%_backend_cpu.bin: test/solvers/test_short_recurrence_backend.cpp $(TEST_HEADERS) | $(BUILD_DIR) check_dependencies
+	$(HOST_CXX) $(CXXFLAGS) -DNMFD_TEST_SOLVER=$* $< $(OPENMP_FLAGS) $(LDFLAGS) -o $@
+
+$(addprefix check_,$(addsuffix _cpu,$(SHORT_SOLVERS))): check_%_cpu: $(BUILD_DIR)/test_%_cpu.bin $(BUILD_DIR)/test_%_backend_cpu.bin
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(BUILD_DIR)/test_$*_cpu.bin
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(BUILD_DIR)/test_$*_backend_cpu.bin
+
+$(addprefix check_,$(addsuffix _json_cpu,$(SHORT_SOLVERS))): check_%_json_cpu: $(BUILD_DIR)/test_%_json_cpu.bin
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $<
+
+$(BUILD_DIR)/test_%_cuda.bin: test/solvers/test_short_recurrence_backend.cpp $(TEST_HEADERS) $(BUILD_DIR)/operations_cuda_reductions.o | check_dependencies
+	$(NVCC) $(NVCCFLAGS) $(INCLUDES) -DTEST_OPERATIONS_CUDA -DNMFD_TEST_SOLVER=$* -x cu -c $< -o $(BUILD_DIR)/test_$*_cuda.o
+	$(NVCC) $(NVCCFLAGS) $(BUILD_DIR)/test_$*_cuda.o $(BUILD_DIR)/operations_cuda_reductions.o -lcublas -o $@
+
+$(addprefix check_,$(addsuffix _cuda,$(SHORT_SOLVERS))): check_%_cuda: $(BUILD_DIR)/test_%_cuda.bin
+	$<
 
 check_dependencies:
 	@test -f "$(NMFD_OPERATIONS_INCLUDE)/nmfd/operations/dense_vector_space.h" || \
@@ -147,6 +175,9 @@ run_tests_cpu: tests_cpu
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_GMRES_LEGACY)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_GMRES_MG)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_OPERATIONS)
+	@set -e; for test in $(SHORT_CPU_TESTS) $(SHORT_BACKEND_TESTS); do OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $$test; done
+
+.PHONY: $(addprefix check_,$(addsuffix _cpu,$(SHORT_SOLVERS))) $(addprefix check_,$(addsuffix _json_cpu,$(SHORT_SOLVERS))) $(addprefix check_,$(addsuffix _cuda,$(SHORT_SOLVERS)))
 
 clean:
 	rm -rf $(BUILD_DIR)

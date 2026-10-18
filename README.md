@@ -41,6 +41,35 @@ retained, but is not the default include tree. Available standalone checks are:
 - `check_gmres_legacy_cpu`
 - `check_gmres_mg_cpu`
 - `check_operations_cpu`
+- `check_bicgstab_cpu`
+- `check_bicgstabl_cpu`
+- `check_cgs_cpu`
+
+The short-recurrence tests cover real/complex arithmetic, serial/OMP storage,
+residual recomputation, breakdown, iteration limits, ownership, and hierarchy
+construction. Optional `check_bicgstab_json_cpu`, `check_bicgstabl_json_cpu`, and
+`check_cgs_json_cpu` require nlohmann/json headers (system-installed or selected
+with `JSON_INCLUDE=/path/to/include`). CUDA equivalents are `check_bicgstab_cuda`,
+`check_bicgstabl_cuda`, and `check_cgs_cuda`.
+
+BiCGStab, BiCGStab(L), and CGS retain the production left-preconditioned
+recurrences. They use the same template argument order, constructors, solver
+base, and shared dependencies as GMRES; loggers remain borrowed `Log*` pointers.
+`set_operator(shared_ptr)` binds operator-dependent preconditioners. The
+`solve(A, rhs, x)` overload borrows its operator and does not rebind a retained
+preconditioner; configure it first when its setup depends on `A`.
+
+`use_precond_resid` selects the monitored norm, `use_real_resid` explicitly
+recomputes that residual, and `resid_recalc_freq` periodically replaces the
+recurrence residual (counted in iterations for BiCGStab, outer polynomial cycles
+for BiCGStab(L)). CGS already recomputes its residual every iteration and defaults
+to monitoring the original residual.
+Success additionally requires the original-system residual to meet the
+unpreconditioned tolerance. Numerical breakdown and failed operator or
+preconditioner calls return `false`; invalid configuration throws.
+BiCGStab(L) defaults to degree 2 and accepts degrees 1 through 30. Workspace and
+small polynomial coefficients are allocated at construction or degree changes,
+not in the iteration loop. Bordered solvers and application migration are separate.
 
 The operations-integration test uses canonical dense, activation-time SCFD, and
 glued spaces with real and complex scalars. It verifies true GMRES residuals,

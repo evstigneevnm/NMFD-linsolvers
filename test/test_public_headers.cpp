@@ -17,6 +17,9 @@
 #include <nmfd/preconditioners/mg.h>
 #include <nmfd/preconditioners/preconditioner_interface.h>
 #include <nmfd/solvers/default_monitor.h>
+#include <nmfd/solvers/bicgstab.h>
+#include <nmfd/solvers/bicgstabl.h>
+#include <nmfd/solvers/cgs.h>
 #include <nmfd/solvers/detail/default_prec_creator.h>
 #include <nmfd/solvers/detail/dense_operations.h>
 #include <nmfd/solvers/detail/monitor_call_wrap.h>

@@ -49,6 +49,12 @@ jobs:
             target: check_gmres_mg_cpu
           - name: operations-integration
             target: check_operations_cpu
+          - name: bicgstab
+            target: check_bicgstab_cpu
+          - name: bicgstabl
+            target: check_bicgstabl_cpu
+          - name: cgs
+            target: check_cgs_cpu
     steps:
       - uses: actions/checkout@v6
         with:
@@ -69,6 +75,26 @@ jobs:
             CONFIG_FILE="build_configs/config_github_ubuntu_${{ matrix.compiler }}.inc" \
             BUILD_DIR="build/${{ matrix.compiler }}/${{ matrix.test.name }}" \
             TEST_OMP_NUM_THREADS=2
+
+  short-recurrence-json:
+    name: JSON / ${{ matrix.solver }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        solver: [bicgstab, bicgstabl, cgs]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Install optional JSON dependency
+        run: sudo apt-get update && sudo apt-get install -y nlohmann-json3-dev
+      - name: Verify JSON configuration and utility hierarchy
+        run: |
+          make 'check_${{ matrix.solver }}_json_cpu' \
+            CONFIG_FILE=build_configs/config_github_ubuntu_gcc.inc \
+            BUILD_DIR=build/json/${{ matrix.solver }} TEST_OMP_NUM_THREADS=2
 
   sanitizers:
     name: GCC / ASan + UBSan
@@ -96,7 +122,7 @@ jobs:
             TEST_OMP_NUM_THREADS=2
 
   cuda:
-    name: CUDA / operations integration
+    name: CUDA / operations and short-recurrence integration
     if: github.event_name == 'workflow_dispatch' && inputs.run_cuda
     runs-on: [self-hosted, linux, cuda]
     timeout-minutes: 15
@@ -107,4 +133,4 @@ jobs:
       - name: Build and test
         env:
           CUDA_ARCH: ${{ inputs.cuda_arch }}
-        run: make check_operations_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"
+        run: make check_operations_cuda check_bicgstab_cuda check_bicgstabl_cuda check_cgs_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"

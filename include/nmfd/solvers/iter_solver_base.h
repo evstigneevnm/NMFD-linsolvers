@@ -44,8 +44,8 @@ protected:
     using logged_obj_t        = scfd::utils::logged_obj_base<Log>;
     using logged_obj_params_t = typename logged_obj_t::params;
 
-    mutable monitor_type                        monitor_;
     std::shared_ptr<vector_operations_type>     vec_ops_;
+    mutable monitor_type                        monitor_;
     std::shared_ptr<preconditioner_type>        prec_;
     std::shared_ptr<const linear_operator_type> A_;
 
@@ -54,8 +54,8 @@ public:
         std::shared_ptr<vector_operations_type> vec_ops, Log *log, const logged_obj_params_t &logged_obj_params,
         const typename monitor_type::params &monitor_params, std::shared_ptr<preconditioner_type> prec = nullptr
     )
-        : logged_obj_t( log, logged_obj_params ), monitor_( *vec_ops, log, monitor_params ),
-          vec_ops_( std::move( vec_ops ) ), prec_( std::move( prec ) ), A_( nullptr )
+        : logged_obj_t( log, logged_obj_params ), vec_ops_( std::move( vec_ops ) ),
+          monitor_( *vec_ops_, log, monitor_params ), prec_( std::move( prec ) ), A_( nullptr )
     {
         if ( prec_ == nullptr )
         {
