@@ -106,11 +106,14 @@ public:
             typename parent_t::norm_type half_step_norm;
             if ( !this->candidate_norm( A, rhs, x, s, half_step_norm ) )
                 return false;
+            bool counted_half_step = false;
             if ( half_step_norm <= monitor_.tol() )
             {
                 ++monitor_;
-                state = this->check( A, rhs, x, s );
-                break;
+                counted_half_step = true;
+                state             = this->check( A, rhs, x, s );
+                if ( state != state_type::running )
+                    break;
             }
             if ( !this->apply( A, s, t ) )
                 return false;
@@ -118,7 +121,8 @@ public:
                 return this->breakdown( "omega" );
             vec_ops_->add_lin_comb( omega, s, T( 1 ), x );
             vec_ops_->assign_lin_comb( T( 1 ), s, -omega, t, r );
-            ++monitor_;
+            if ( !counted_half_step )
+                ++monitor_;
             if ( !this->recompute( A, rhs, x, r, monitor_.iters_performed() ) )
                 return false;
             state        = this->check( A, rhs, x, r );

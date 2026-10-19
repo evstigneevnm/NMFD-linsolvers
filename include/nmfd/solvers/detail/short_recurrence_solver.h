@@ -334,9 +334,13 @@ protected:
                 physical_norm = vec_ops_->norm( *checked_residual_ );
             }
         }
-        return std::isfinite( physical_norm ) && physical_norm <= monitor_.abs_tol() + monitor_.rel_tol() * rhs_norm_
-                   ? iteration_state::converged
-                   : iteration_state::failed;
+        if ( !std::isfinite( physical_norm ) )
+            return iteration_state::failed;
+        if ( physical_norm <= monitor_.abs_tol() + monitor_.rel_tol() * rhs_norm_ )
+            return iteration_state::converged;
+        // A preconditioned tolerance hit is not a failure while iterations remain.
+        return monitor_.iters_performed() < monitor_.max_iters_num() ? iteration_state::running
+                                                                     : iteration_state::failed;
     }
     bool finish( const LinearOperator &A, const vector_type &rhs, vector_type &x, iteration_state state ) const
     {

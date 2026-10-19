@@ -142,6 +142,39 @@ void short_recurrence_case( test_harness &test )
     }
 }
 
+template <template <class, class, class, class, class> class Solver>
+void short_recurrence_true_residual( test_harness &test )
+{
+    using space_type    = cpu_reference_vector_space<double>;
+    using operator_type = analytical_operator<space_type>;
+    using prec_type     = diagonal_preconditioner<space_type, operator_type>;
+    using monitor_type  = nmfd::solvers::monitor_krylov<space_type, scfd::utils::log_std>;
+    using solver_type   = Solver<space_type, monitor_type, scfd::utils::log_std, operator_type, prec_type>;
+    auto                         space = std::make_shared<space_type>( 2 );
+    auto                         op    = std::make_shared<operator_type>( *space, std::vector<double>{ 2, 0, 0, 3 } );
+    auto                         prec  = std::make_shared<prec_type>( *space, std::vector<double>{ 0.5, 1e-10 } );
+    typename solver_type::params parameters;
+    parameters.monitor.rel_tol       = 1e-8;
+    parameters.monitor.abs_tol       = 0;
+    parameters.monitor.max_iters_num = 30;
+    solver_type         solver( op, space, nullptr, parameters, prec );
+    std::vector<double> rhs{ 2, 3 }, x( 2 ), residual( 2 );
+    test.require( solver.solve( rhs, x ), "Preconditioned tolerance hit continues until true residual converges" );
+    op->apply( x, residual );
+    space->add_lin_comb( 1.0, rhs, -1.0, residual );
+    test.require(
+        space->norm( residual ) <= parameters.monitor.rel_tol * space->norm( rhs ),
+        "Strongly scaled preconditioner does not permit false convergence"
+    );
+    test.require(
+        solver.monitor().iters_performed() <= parameters.monitor.max_iters_num,
+        "True-residual continuation remains bounded"
+    );
+    solver.monitor().set_temp_max_iterations( 1 );
+    space->assign_scalar( 0.0, x );
+    test.require( !solver.solve( rhs, x ), "Unsatisfied true residual at iteration limit returns failure" );
+}
+
 template <template <class, class, class, class, class> class Solver, bool Polynomial>
 void short_recurrence_failures( test_harness &test )
 {
@@ -159,7 +192,7 @@ void short_recurrence_failures( test_harness &test )
     p.monitor.abs_tol       = 1e-14;
     p.monitor.max_iters_num = 30;
     solver_type         solver( op, space, nullptr, p, prec );
-    std::vector<double> rhs{ 1, 2, 3 }, x( 3 );
+    std::vector<double> rhs{ 1, 2, 3 }, x( 3 ), residual( 3 );
     op->fail_after( 0 );
     test.require( !solver.solve( rhs, x ), "Operator failure is not convergence" );
     op->allow_all_calls();
@@ -200,7 +233,13 @@ void short_recurrence_failures( test_harness &test )
     p.use_precond_resid     = true;
     solver_type scaled( op, space, nullptr, p, tiny );
     space->assign_scalar( 0, x );
-    test.require( !scaled.solve( rhs, x ), "Tiny preconditioned residual cannot hide original residual" );
+    const bool scaled_converged = scaled.solve( rhs, x );
+    op->apply( x, residual );
+    space->add_lin_comb( 1.0, rhs, -1.0, residual );
+    test.require(
+        !scaled_converged || space->norm( residual ) <= p.monitor.abs_tol + p.monitor.rel_tol * space->norm( rhs ),
+        "Tiny preconditioned residual cannot hide original residual"
+    );
     rhs[0] = std::numeric_limits<double>::quiet_NaN();
     test.require( !solver.solve( rhs, x ), "NaN RHS returns failure" );
     rhs[0] = 1;
@@ -303,6 +342,7 @@ int run_short_recurrence_tests( const std::string &name )
     short_recurrence_case<Solver, Polynomial, std::complex<double>>( test );
     short_recurrence_failures<Solver, Polynomial>( test );
     short_recurrence_ownership<Solver>( test );
+    short_recurrence_true_residual<Solver>( test );
 
     using space_type    = cpu_reference_vector_space<double>;
     using operator_type = analytical_operator<space_type>;

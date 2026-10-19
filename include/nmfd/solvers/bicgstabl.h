@@ -142,7 +142,8 @@ public:
                 if ( half_step_norm <= monitor_.tol() )
                 {
                     state = this->check( A, rhs, x, r( 0 ) );
-                    return this->finish( A, rhs, x, state );
+                    if ( state != state_type::running )
+                        return this->finish( A, rhs, x, state );
                 }
                 if ( !this->apply( A, r( j ), r( j + 1 ) ) )
                     return false;
