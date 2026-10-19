@@ -41,6 +41,8 @@ jobs:
             target: check_arnoldi_cpu
           - name: monitor
             target: check_monitor_cpu
+          - name: sherman-morrison
+            target: check_sherman_morrison_cpu
           - name: gmres-core
             target: check_gmres_core_cpu
           - name: gmres-legacy
@@ -135,4 +137,4 @@ jobs:
       - name: Build and test
         env:
           CUDA_ARCH: ${{ inputs.cuda_arch }}
-        run: make check_operations_cuda check_bicgstab_cuda check_bicgstabl_cuda check_cgs_cuda check_jacobi_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"
+        run: make check_operations_cuda check_bicgstab_cuda check_bicgstabl_cuda check_cgs_cuda check_jacobi_cuda check_sherman_morrison_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"

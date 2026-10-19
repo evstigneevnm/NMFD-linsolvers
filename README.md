@@ -37,6 +37,7 @@ retained, but is not the default include tree. Available standalone checks are:
 - `check_orthogonalization_cpu`
 - `check_arnoldi_cpu`
 - `check_monitor_cpu`
+- `check_sherman_morrison_cpu`
 - `check_gmres_core_cpu`
 - `check_gmres_legacy_cpu`
 - `check_gmres_mg_cpu`
@@ -80,7 +81,20 @@ unpreconditioned tolerance. Numerical breakdown and failed operator or
 preconditioner calls return `false`; invalid configuration throws.
 BiCGStab(L) defaults to degree 2 and accepts degrees 1 through 30. Workspace and
 small polynomial coefficients are allocated at construction or degree changes,
-not in the iteration loop. Bordered solvers and application migration are separate.
+not in the iteration loop.
+
+`sherman_morrison<Space, Monitor, Log, Operator, Preconditioner, Solver>` ports the
+existing ordinary, rank-one, and scalar-bordered elimination. Construct it with
+shared `(space, operator, preconditioner)` and an optional borrowed `Log*`.
+Its `solve(A, ...)` overloads require that same bound operator; coefficient
+updates in place are supported. Zero elimination pivots return `false`; this is
+not a general bordered solver. Optional small-pivot scaling is selected anew on
+each solve and never modifies input vectors. Success requires the original
+system residual, not just the reduced Krylov residual. A small-pivot bordered
+solve temporarily tightens inner tolerances and restores the caller's settings,
+including on exceptions. Workspaces are allocated once; solves do not copy
+shared handles. `check_sherman_morrison_cuda` exercises the same analytical tests
+on CUDA.
 
 The operations-integration test uses canonical dense, activation-time SCFD, and
 glued spaces with real and complex scalars. It verifies true GMRES residuals,

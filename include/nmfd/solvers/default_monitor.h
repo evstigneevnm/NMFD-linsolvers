@@ -21,6 +21,7 @@
 #include <memory>
 #include <vector>
 #include <utility>
+#include <stdexcept>
 #ifdef NMFD_ENABLE_NLOHMANN
 #    include <nlohmann/json.hpp>
 #endif
@@ -104,6 +105,7 @@ public:
 
 private:
     T   rel_tol_save_;
+    T   abs_tol_save_;
     int max_iters_num_save_;
 
     //followings are current convergence info
@@ -135,6 +137,22 @@ public:
             //buf_.init();
         }
         rel_tol_save_ = prms_.rel_tol;
+        abs_tol_save_ = prms_.abs_tol;
+    }
+
+    // Reconfigure between solves; temporary overrides restore to this baseline.
+    void configure( const params &parameters )
+    {
+        if ( !std::isfinite( parameters.rel_tol ) || parameters.rel_tol < T( 0 ) ||
+             !std::isfinite( parameters.abs_tol ) || parameters.abs_tol < T( 0 ) || parameters.max_iters_num < 0 ||
+             parameters.min_iters_num < 0 || parameters.min_iters_num > parameters.max_iters_num )
+            throw std::invalid_argument( "Invalid linear monitor parameters" );
+        prms_               = parameters;
+        rel_tol_save_       = prms_.rel_tol;
+        abs_tol_save_       = prms_.abs_tol;
+        max_iters_num_save_ = prms_.max_iters_num;
+        this->set_obj_log_lev( prms_.obj_log_lev );
+        this->set_log_msg_prefix( prms_.log_msg_prefix );
     }
 
     void set_save_convergence_history( bool save_convergence_history )
@@ -153,12 +171,27 @@ public:
     //TODO add separate function to control tolerances and behaviour
     void set_temp_tolerance( T rel_tol )
     {
-        rel_tol_save_ = prms_.rel_tol;
+        set_temp_tolerance( rel_tol, prms_.abs_tol );
+    }
+    void set_temp_tolerance( T rel_tol, T abs_tol )
+    {
+        const T previous_relative = prms_.rel_tol;
+        const T previous_absolute = prms_.abs_tol;
+        set_tolerances( rel_tol, abs_tol );
+        rel_tol_save_ = previous_relative;
+        abs_tol_save_ = previous_absolute;
+    }
+    void set_tolerances( T rel_tol, T abs_tol )
+    {
+        if ( !std::isfinite( rel_tol ) || rel_tol < T( 0 ) || !std::isfinite( abs_tol ) || abs_tol < T( 0 ) )
+            throw std::invalid_argument( "Invalid linear monitor tolerances" );
         prms_.rel_tol = rel_tol;
+        prms_.abs_tol = abs_tol;
     }
     void restore_tolerance()
     {
         prms_.rel_tol = rel_tol_save_;
+        prms_.abs_tol = abs_tol_save_;
     }
     void set_temp_max_iterations( int max_iter_local )
     {

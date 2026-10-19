@@ -44,6 +44,48 @@ void test_convergence_and_history( nmfd::tests::test_harness &test )
     monitor.stop();
 }
 
+void test_configuration( nmfd::tests::test_harness &test )
+{
+    vector_space_type    space( 1 );
+    monitor_type         monitor( space );
+    monitor_type::params p;
+    p.rel_tol            = 1e-4;
+    p.abs_tol            = 1e-8;
+    p.max_iters_num      = 17;
+    p.out_min_resid_norm = true;
+    monitor.configure( p );
+    monitor.set_temp_tolerance( 1e-6 );
+    monitor.set_tolerances( 1e-9, 1e-12 );
+    monitor.set_tolerances( 1e-6, 1e-8 );
+    monitor.restore_tolerance();
+    test.require(
+        monitor.rel_tol() == p.rel_tol && monitor.abs_tol() == p.abs_tol,
+        "local tolerance changes preserve caller override baseline"
+    );
+    monitor.set_temp_tolerance( 1e-7, 1e-13 );
+    monitor.restore_tolerance();
+    test.require(
+        monitor.rel_tol() == p.rel_tol && monitor.abs_tol() == p.abs_tol, "both temporary tolerances restore"
+    );
+    monitor.set_temp_max_iterations( 3 );
+    monitor.restore_max_iterations();
+    test.require(
+        monitor.max_iters_num() == 17 && monitor.out_min_resid_norm(),
+        "configuration sets iteration baseline and minimum-residual storage"
+    );
+    p.rel_tol     = std::numeric_limits<double>::infinity();
+    bool rejected = false;
+    try
+    {
+        monitor.configure( p );
+    }
+    catch ( const std::invalid_argument & )
+    {
+        rejected = true;
+    }
+    test.require( rejected && monitor.rel_tol() == 1e-4, "invalid configuration leaves previous tolerances unchanged" );
+}
+
 void test_limits_and_invalid_solution( nmfd::tests::test_harness &test )
 {
     vector_space_type    vector_space( 2 );
@@ -174,6 +216,7 @@ int main()
 {
     nmfd::tests::test_harness test;
     test_convergence_and_history( test );
+    test_configuration( test );
     test_limits_and_invalid_solution( test );
     test_temporary_parameters( test );
     test_zero_rhs_scaling( test );

@@ -32,6 +32,7 @@
 #include <nmfd/solvers/krylov/operator_apply.h>
 #include <nmfd/solvers/krylov/orthogonalization.h>
 #include <nmfd/solvers/monitor_krylov.h>
+#include <nmfd/solvers/sherman_morrison.h>
 
 #include <iostream>
 
