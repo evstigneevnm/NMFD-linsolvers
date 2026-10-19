@@ -55,6 +55,8 @@ jobs:
             target: check_bicgstabl_cpu
           - name: cgs
             target: check_cgs_cpu
+          - name: jacobi
+            target: check_jacobi_cpu
     steps:
       - uses: actions/checkout@v6
         with:
@@ -83,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        solver: [bicgstab, bicgstabl, cgs]
+        solver: [bicgstab, bicgstabl, cgs, jacobi]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -133,4 +135,4 @@ jobs:
       - name: Build and test
         env:
           CUDA_ARCH: ${{ inputs.cuda_arch }}
-        run: make check_operations_cuda check_bicgstab_cuda check_bicgstabl_cuda check_cgs_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"
+        run: make check_operations_cuda check_bicgstab_cuda check_bicgstabl_cuda check_cgs_cuda check_jacobi_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"

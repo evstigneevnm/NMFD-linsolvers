@@ -26,6 +26,7 @@
 #include <nmfd/solvers/detail/residual_regularization_dummy.h>
 #include <nmfd/solvers/gmres.h>
 #include <nmfd/solvers/iter_solver_base.h>
+#include <nmfd/solvers/jacobi.h>
 #include <nmfd/solvers/krylov/arnoldi.h>
 #include <nmfd/solvers/krylov/basis_storage.h>
 #include <nmfd/solvers/krylov/operator_apply.h>

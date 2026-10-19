@@ -44,6 +44,17 @@ retained, but is not the default include tree. Available standalone checks are:
 - `check_bicgstab_cpu`
 - `check_bicgstabl_cpu`
 - `check_cgs_cpu`
+- `check_jacobi_cpu`
+
+Jacobi is also owned by this library. Its historical template argument order
+`jacobi<VectorOp, Operator, Preconditioner, Monitor, Log>` and existing
+constructors remain valid for Newton and Cahn-Hilliard clients. The iteration is
+unchanged: `r = A*x-b`, followed by `x -= P*r`. A missing preconditioner means
+identity. Every convergence check uses the original residual; failed operations
+or nonfinite values return `false`. The residual workspace is allocated once,
+and monitor activation is scoped across success, failure, and exceptions.
+`check_jacobi_json_cpu` verifies optional JSON/hierarchy support;
+`check_jacobi_cuda` exercises canonical CUDA spaces.
 
 The short-recurrence tests cover real/complex arithmetic, serial/OMP storage,
 residual recomputation, breakdown, iteration limits, ownership, and hierarchy

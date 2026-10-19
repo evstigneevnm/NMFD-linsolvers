@@ -34,6 +34,8 @@ TEST_GMRES_LEGACY := $(BUILD_DIR)/test_gmres_legacy_cpu.bin
 TEST_GMRES_MG := $(BUILD_DIR)/test_gmres_mg_cpu.bin
 TEST_OPERATIONS := $(BUILD_DIR)/test_operations_integration_cpu.bin
 TEST_OPERATIONS_CUDA := $(BUILD_DIR)/test_operations_integration_cuda.bin
+TEST_JACOBI := $(BUILD_DIR)/test_jacobi_cpu.bin
+TEST_JACOBI_BACKEND := $(BUILD_DIR)/test_jacobi_backend_cpu.bin
 SHORT_SOLVERS := bicgstab bicgstabl cgs
 SHORT_CPU_TESTS := $(addprefix $(BUILD_DIR)/test_,$(addsuffix _cpu.bin,$(SHORT_SOLVERS)))
 SHORT_BACKEND_TESTS := $(addprefix $(BUILD_DIR)/test_,$(addsuffix _backend_cpu.bin,$(SHORT_SOLVERS)))
@@ -48,7 +50,7 @@ CPU_TESTS := \
 	$(TEST_GMRES_CORE) \
 	$(TEST_GMRES_LEGACY) \
 	$(TEST_GMRES_MG) \
-	$(TEST_OPERATIONS) $(SHORT_CPU_TESTS) $(SHORT_BACKEND_TESTS)
+	$(TEST_OPERATIONS) $(SHORT_CPU_TESTS) $(SHORT_BACKEND_TESTS) $(TEST_JACOBI) $(TEST_JACOBI_BACKEND)
 
 .PHONY: \
 	all \
@@ -77,6 +79,19 @@ $(BUILD_DIR)/test_%_json_cpu.bin: test/solvers/test_%.cpp test/common/short_recu
 $(SHORT_BACKEND_TESTS): $(BUILD_DIR)/test_%_backend_cpu.bin: test/solvers/test_short_recurrence_backend.cpp $(TEST_HEADERS) | $(BUILD_DIR) check_dependencies
 	$(HOST_CXX) $(CXXFLAGS) -DNMFD_TEST_SOLVER=$* $< $(OPENMP_FLAGS) $(LDFLAGS) -o $@
 
+$(TEST_JACOBI_BACKEND): test/solvers/test_short_recurrence_backend.cpp $(TEST_HEADERS) | $(BUILD_DIR) check_dependencies
+	$(HOST_CXX) $(CXXFLAGS) -DNMFD_TEST_JACOBI $< $(OPENMP_FLAGS) $(LDFLAGS) -o $@
+
+check_jacobi_cpu: $(TEST_JACOBI) $(TEST_JACOBI_BACKEND)
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_JACOBI)
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_JACOBI_BACKEND)
+
+check_jacobi_json_cpu: $(BUILD_DIR)/test_jacobi_json_cpu.bin
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $<
+
+check_jacobi_cuda: $(BUILD_DIR)/test_jacobi_cuda.bin
+	$<
+
 $(addprefix check_,$(addsuffix _cpu,$(SHORT_SOLVERS))): check_%_cpu: $(BUILD_DIR)/test_%_cpu.bin $(BUILD_DIR)/test_%_backend_cpu.bin
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(BUILD_DIR)/test_$*_cpu.bin
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(BUILD_DIR)/test_$*_backend_cpu.bin
@@ -85,7 +100,7 @@ $(addprefix check_,$(addsuffix _json_cpu,$(SHORT_SOLVERS))): check_%_json_cpu: $
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $<
 
 $(BUILD_DIR)/test_%_cuda.bin: test/solvers/test_short_recurrence_backend.cpp $(TEST_HEADERS) $(BUILD_DIR)/operations_cuda_reductions.o | check_dependencies
-	$(NVCC) $(NVCCFLAGS) $(INCLUDES) -DTEST_OPERATIONS_CUDA -DNMFD_TEST_SOLVER=$* -x cu -c $< -o $(BUILD_DIR)/test_$*_cuda.o
+	$(NVCC) $(NVCCFLAGS) $(INCLUDES) -DTEST_OPERATIONS_CUDA -DNMFD_TEST_SOLVER=$* $(if $(filter jacobi,$*),-DNMFD_TEST_JACOBI) -x cu -c $< -o $(BUILD_DIR)/test_$*_cuda.o
 	$(NVCC) $(NVCCFLAGS) $(BUILD_DIR)/test_$*_cuda.o $(BUILD_DIR)/operations_cuda_reductions.o -lcublas -o $@
 
 $(addprefix check_,$(addsuffix _cuda,$(SHORT_SOLVERS))): check_%_cuda: $(BUILD_DIR)/test_%_cuda.bin
@@ -176,8 +191,11 @@ run_tests_cpu: tests_cpu
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_GMRES_MG)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_OPERATIONS)
 	@set -e; for test in $(SHORT_CPU_TESTS) $(SHORT_BACKEND_TESTS); do OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $$test; done
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_JACOBI)
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_JACOBI_BACKEND)
 
 .PHONY: $(addprefix check_,$(addsuffix _cpu,$(SHORT_SOLVERS))) $(addprefix check_,$(addsuffix _json_cpu,$(SHORT_SOLVERS))) $(addprefix check_,$(addsuffix _cuda,$(SHORT_SOLVERS)))
+.PHONY: check_jacobi_cpu check_jacobi_json_cpu check_jacobi_cuda
 
 clean:
 	rm -rf $(BUILD_DIR)

@@ -17,6 +17,7 @@
 #include <nmfd/solvers/bicgstab.h>
 #include <nmfd/solvers/bicgstabl.h>
 #include <nmfd/solvers/cgs.h>
+#include <nmfd/solvers/jacobi.h>
 #include <nmfd/solvers/monitor_krylov.h>
 #include "common/test_harness.h"
 
@@ -26,6 +27,25 @@
 
 namespace
 {
+
+#ifdef NMFD_TEST_JACOBI
+template <class Space, class Operator>
+struct relaxation_preconditioner
+{
+    using vector_type = typename Space::vector_type;
+    std::shared_ptr<Space> space;
+    explicit relaxation_preconditioner( std::shared_ptr<Space> operations ) : space( std::move( operations ) )
+    {
+    }
+    void set_operator( std::shared_ptr<const Operator> )
+    {
+    }
+    void apply( vector_type &x ) const
+    {
+        space->scale( typename Space::scalar_type( .1 ), x );
+    }
+};
+#endif
 
 template <class Backend, class T>
 void test_backend( nmfd::tests::test_harness &test )
@@ -39,8 +59,13 @@ void test_backend( nmfd::tests::test_harness &test )
     using space_type    = typename operator_type::vector_space_type;
     using log_type      = scfd::utils::log_std;
     using monitor_type  = nmfd::solvers::monitor_krylov<space_type, log_type>;
-    using solver_type   = nmfd::solvers::NMFD_TEST_SOLVER<space_type, monitor_type, log_type, operator_type>;
-    using norm_type     = typename space_type::norm_type;
+#ifdef NMFD_TEST_JACOBI
+    using preconditioner_type = relaxation_preconditioner<space_type, operator_type>;
+    using solver_type = nmfd::solvers::jacobi<space_type, operator_type, preconditioner_type, monitor_type, log_type>;
+#else
+    using solver_type = nmfd::solvers::NMFD_TEST_SOLVER<space_type, monitor_type, log_type, operator_type>;
+#endif
+    using norm_type                                  = typename space_type::norm_type;
     auto                                  operations = std::make_shared<operations_type>();
     typename operations_type::matrix_type matrix;
     operations->init_matrix( 8, 8, matrix );
@@ -77,8 +102,13 @@ void test_backend( nmfd::tests::test_harness &test )
             space->set_regular_precision();
         for ( bool recompute : { false, true } )
         {
+#ifdef NMFD_TEST_JACOBI
+            p.monitor.out_min_resid_norm = recompute;
+            solver_type solver( op, space, nullptr, p, std::make_shared<preconditioner_type>( space ) );
+#else
             p.use_real_resid = recompute;
             solver_type solver( op, space, nullptr, p );
+#endif
             space->assign_scalar( T( 0 ), *x );
             for ( int attempt = 0; attempt < 2; ++attempt )
             {

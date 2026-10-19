@@ -72,7 +72,7 @@ template <class Coarsening, class Operator, class Restrictor, class Prolongator>
 struct has_update_coarse_operator<
     Coarsening, Operator, Restrictor, Prolongator,
     std::void_t<decltype( std::declval<Coarsening &>().update_coarse_operator(
-        std::declval<const Operator &>(), std::declval<const Restrictor &>(), std::declval<const Prolongator &>(),
+        std::declval<const Operator &>(), std::declval<const Restrictor &>(), std::declval<Prolongator &>(),
         std::declval<std::shared_ptr<const Operator>>()
     ) )>> : std::true_type
 {
@@ -80,7 +80,7 @@ struct has_update_coarse_operator<
 
 template <class Coarsening, class Operator, class Restrictor, class Prolongator>
 std::shared_ptr<const Operator> update_coarse_operator(
-    Coarsening &coarsening, const Operator &fine_operator, const Restrictor &restrictor, const Prolongator &prolongator,
+    Coarsening &coarsening, const Operator &fine_operator, const Restrictor &restrictor, Prolongator &prolongator,
     std::shared_ptr<const Operator> current_coarse_operator
 )
 {
