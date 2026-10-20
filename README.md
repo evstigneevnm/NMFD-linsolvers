@@ -38,6 +38,7 @@ retained, but is not the default include tree. Available standalone checks are:
 - `check_arnoldi_cpu`
 - `check_monitor_cpu`
 - `check_sherman_morrison_cpu`
+- `check_direct_solver_cpu`
 - `check_gmres_core_cpu`
 - `check_gmres_legacy_cpu`
 - `check_gmres_mg_cpu`
@@ -95,6 +96,16 @@ solve temporarily tightens inner tolerances and restores the caller's settings,
 including on exceptions. Workspaces are allocated once; solves do not copy
 shared handles. `check_sherman_morrison_cuda` exercises the same analytical tests
 on CUDA.
+
+`direct_solver<Space, Monitor, Log, Operator, Inverse>` uses the same solver base
+and shared bindings. The supplied inverse exposes `set_operator(shared_ptr)` and
+in-place `apply(x)`, returning `void` or `bool`. It may call dense operations or
+an analytical inverse; the solver itself contains no factorization arithmetic.
+Bind the operator before either solve overload. One inverse application is
+checked against the original-system residual, and `x` is published only on
+success. `status()` distinguishes input, inverse, operator, and residual failures.
+Bypassing the only inverse returns failure, not an identity solve. CPU and CUDA
+direct-solver tests also verify rank-one/scalar-border composition and ownership.
 
 The operations-integration test uses canonical dense, activation-time SCFD, and
 glued spaces with real and complex scalars. It verifies true GMRES residuals,

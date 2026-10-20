@@ -19,6 +19,7 @@
 
 #include <cmath>
 #include <memory>
+#include <limits>
 #include <vector>
 #include <utility>
 #include <stdexcept>
@@ -208,6 +209,8 @@ public:
     {
         rhs_norm_        = vec_ops_.norm( rhs );
         iters_performed_ = 0;
+        resid_norm_ = min_resid_norm_ = std::numeric_limits<T>::infinity();
+        is_valid_number_              = false;
         if ( prms_.out_min_resid_norm )
             min_resid_norm_x_.start_use();
         if ( prms_.save_convergence_history )

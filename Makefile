@@ -30,6 +30,7 @@ TEST_ORTHOGONALIZATION := $(BUILD_DIR)/test_orthogonalization_cpu.bin
 TEST_ARNOLDI := $(BUILD_DIR)/test_arnoldi_cpu.bin
 TEST_MONITOR := $(BUILD_DIR)/test_monitor_cpu.bin
 TEST_SHERMAN_MORRISON := $(BUILD_DIR)/test_sherman_morrison_cpu.bin
+TEST_DIRECT := $(BUILD_DIR)/test_direct_solver_cpu.bin
 TEST_GMRES_CORE := $(BUILD_DIR)/test_gmres_core_cpu.bin
 TEST_GMRES_LEGACY := $(BUILD_DIR)/test_gmres_legacy_cpu.bin
 TEST_GMRES_MG := $(BUILD_DIR)/test_gmres_mg_cpu.bin
@@ -47,7 +48,7 @@ CPU_TESTS := \
 	$(TEST_PUBLIC_HEADERS) \
 	$(TEST_ORTHOGONALIZATION) \
 	$(TEST_ARNOLDI) \
-	$(TEST_MONITOR) $(TEST_SHERMAN_MORRISON) \
+	$(TEST_MONITOR) $(TEST_SHERMAN_MORRISON) $(TEST_DIRECT) \
 	$(TEST_GMRES_CORE) \
 	$(TEST_GMRES_LEGACY) \
 	$(TEST_GMRES_MG) \
@@ -170,6 +171,16 @@ check_monitor_cpu: $(TEST_MONITOR)
 check_sherman_morrison_cpu: $(TEST_SHERMAN_MORRISON)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $<
 
+check_direct_solver_cpu: $(TEST_DIRECT)
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $<
+
+$(BUILD_DIR)/test_direct_solver_cuda.bin: test/solvers/test_direct_solver.cpp $(TEST_HEADERS) $(BUILD_DIR)/operations_cuda_reductions.o | check_dependencies
+	$(NVCC) $(NVCCFLAGS) $(INCLUDES) -DTEST_OPERATIONS_CUDA -x cu -c $< -o $(BUILD_DIR)/test_direct_solver_cuda.o
+	$(NVCC) $(NVCCFLAGS) $(BUILD_DIR)/test_direct_solver_cuda.o $(BUILD_DIR)/operations_cuda_reductions.o -lcublas -lcusolver -o $@
+
+check_direct_solver_cuda: $(BUILD_DIR)/test_direct_solver_cuda.bin
+	$<
+
 $(BUILD_DIR)/test_sherman_morrison_cuda.bin: test/solvers/test_sherman_morrison.cpp $(TEST_HEADERS) $(BUILD_DIR)/operations_cuda_reductions.o | check_dependencies
 	$(NVCC) $(NVCCFLAGS) $(INCLUDES) -DTEST_OPERATIONS_CUDA -x cu -c $< -o $(BUILD_DIR)/test_sherman_morrison_cuda.o
 	$(NVCC) $(NVCCFLAGS) $(BUILD_DIR)/test_sherman_morrison_cuda.o $(BUILD_DIR)/operations_cuda_reductions.o -lcublas -o $@
@@ -193,6 +204,7 @@ check_operations_cuda: $(TEST_OPERATIONS_CUDA)
 	$(TEST_OPERATIONS_CUDA)
 
 run_tests_cpu: tests_cpu
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_DIRECT)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_SHERMAN_MORRISON)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_PUBLIC_HEADERS)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_ORTHOGONALIZATION)
@@ -209,6 +221,7 @@ run_tests_cpu: tests_cpu
 .PHONY: $(addprefix check_,$(addsuffix _cpu,$(SHORT_SOLVERS))) $(addprefix check_,$(addsuffix _json_cpu,$(SHORT_SOLVERS))) $(addprefix check_,$(addsuffix _cuda,$(SHORT_SOLVERS)))
 .PHONY: check_jacobi_cpu check_jacobi_json_cpu check_jacobi_cuda
 .PHONY: check_sherman_morrison_cpu check_sherman_morrison_cuda
+.PHONY: check_direct_solver_cpu check_direct_solver_cuda
 
 clean:
 	rm -rf $(BUILD_DIR)
