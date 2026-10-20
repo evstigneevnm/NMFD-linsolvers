@@ -53,6 +53,7 @@ struct dense_inverse
     bool                            inaccurate     = false;
     bool                            nonfinite      = false;
     bool                            throw_on_apply = false;
+    T                               relative_error = T( 0 );
     void                            set_operator( std::shared_ptr<const Operator> A )
     {
         op = std::move( A );
@@ -70,7 +71,11 @@ struct dense_inverse
         }
         if ( inaccurate )
             return true;
-        return nmfd::solvers::krylov::invoke_status( &Operations::solve, *operations, *op, x, x );
+        if ( !nmfd::solvers::krylov::invoke_status( &Operations::solve, *operations, *op, x, x ) )
+            return false;
+        if ( relative_error != T( 0 ) )
+            operations->scale( T( 1 ) + relative_error, x );
+        return true;
     }
 };
 
@@ -202,6 +207,75 @@ void test_solver( nmfd::tests::test_harness &test )
         test.require_close( v, T( 2 ), double( parameters.monitor.rel_tol ) * 10, "border scalar reference" );
         space->assign_lin_comb( T( 1 ), *x, T( -1 ), *exact, *residual );
         test.require( space->norm( *residual ) < parameters.monitor.rel_tol * T( 10 ), "border vector reference" );
+
+        // A controlled inverse error fits the original budget but not an extra small-pivot tightening.
+        auto identity = op->create_view( false );
+        for ( int i = 0; i < 3; ++i )
+            for ( int j = 0; j < 3; ++j )
+                identity( i, j ) = i == j ? T( 1 ) : T( 0 );
+        identity.release( true );
+        space->assign_scalar( T( 0 ), *c );
+        auto c_view = ( *c ).create_view( true );
+        c_view( 0 ) = T( 1 );
+        c_view.release( true );
+        space->assign_scalar( T( 0 ), *d );
+        auto d_view = ( *d ).create_view( true );
+        d_view( 1 ) = T( 1 );
+        d_view.release( true );
+        inverse->relative_error    = T( 32 ) * std::numeric_limits<T>::epsilon();
+        parameters.monitor.rel_tol = T( 256 ) * std::numeric_limits<T>::epsilon();
+        parameters.monitor.abs_tol = T( 0 );
+        auto &monitor              = extended.get_linsolver_handle()->monitor();
+        monitor.configure( parameters.monitor );
+        for ( bool scaled : { false, true } )
+        {
+            extended.is_small_alpha( scaled );
+            for ( T alpha : { T( 1e-4 ), T( -1e-4 ) } )
+            {
+                space->assign( *d, *b );
+                space->assign_scalar( T( 0 ), *x );
+                monitor.set_temp_tolerance( parameters.monitor.rel_tol / T( 2 ) );
+                const T tolerance = monitor.rel_tol() * space->norm( *b );
+                v                 = T( 99 );
+                test.require(
+                    extended.solve( *op, *c, *d, alpha, *b, T( 0 ), *x, v ),
+                    "small-pivot direct solve uses the original bordered tolerance"
+                );
+                test.require(
+                    monitor.rel_tol() == parameters.monitor.rel_tol / T( 2 ) && monitor.abs_tol() == T( 0 ),
+                    "small-pivot solve restores caller tolerance override"
+                );
+                monitor.restore_tolerance();
+                test.require( monitor.rel_tol() == parameters.monitor.rel_tol, "caller restores baseline tolerance" );
+                op->apply( *x, *residual );
+                space->add_lin_comb( v, *d, T( 1 ), *residual );
+                space->add_lin_comb( T( -1 ), *b, T( 1 ), *residual );
+                const T norm = std::hypot( space->norm( *residual ), space->scalar_prod( *c, *x ) + alpha * v );
+                test.require( norm <= tolerance, "accepted small-pivot correction meets the full residual target" );
+                test.require(
+                    norm > std::abs( alpha ) * tolerance, "obsolete pivot tightening would reject correction"
+                );
+
+                space->assign_scalar( T( 0 ), *b );
+                v = T( 99 );
+                test.require(
+                    !extended.solve( *op, *c, *d, alpha, *b, T( 1 ), *x, v ),
+                    "large eliminated RHS cannot inflate the original residual budget"
+                );
+                test.require( v == T( 99 ), "inaccurate bordered correction does not publish scalar" );
+            }
+        }
+        inverse->relative_error = T( 0 );
+        space->assign_scalar( T( 0 ), *b );
+        test.require(
+            extended.solve( *op, *c, *d, T( 1e-4 ), *b, T( 0 ), *x, v ),
+            "zero bordered RHS supports an exactly zero tolerance"
+        );
+        space->assign_scalar( std::numeric_limits<T>::infinity(), *b );
+        test.require(
+            !extended.solve( *op, *c, *d, T( 1e-4 ), *b, T( 0 ), *x, v ),
+            "nonfinite original residual budget reports failure"
+        );
     }
     inverse.reset();
     op.reset();

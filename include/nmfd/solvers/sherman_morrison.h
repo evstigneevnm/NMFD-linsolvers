@@ -5,7 +5,6 @@
 #define __NMFD_SHERMAN_MORRISON_H__
 
 #include <cmath>
-#include <algorithm>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -173,11 +172,15 @@ public:
     {
         if ( !configure( A, T( 1 ), alpha, c, d ) || !std::isfinite( beta ) )
             return false;
+        const T tolerance =
+            reduced_.monitor().abs_tol() + reduced_.monitor().rel_tol() * std::hypot( operations_->norm( b ), beta );
+        if ( !std::isfinite( tolerance ) )
+            return false;
         if ( scaled( alpha ) )
             operations_->assign_lin_comb( alpha, b, -beta, d, *rhs_ );
         else
             operations_->assign_lin_comb( T( 1 ), b, -beta / alpha, d, *rhs_ );
-        if ( !solve_border_reduced( alpha, u ) )
+        if ( !solve_border_reduced( alpha, tolerance, u ) )
             return false;
         const T candidate = ( beta - operations_->scalar_prod( c, u ) ) / alpha;
         if ( !std::isfinite( candidate ) )
@@ -186,8 +189,6 @@ public:
             return false;
         operations_->add_lin_comb( candidate, d, T( 1 ), *rhs_ );
         operations_->add_lin_comb( T( -1 ), b, T( 1 ), *rhs_ );
-        const T tolerance =
-            reduced_.monitor().abs_tol() + reduced_.monitor().rel_tol() * std::hypot( operations_->norm( b ), beta );
         const T scalar_residual = operations_->scalar_prod( c, u ) + alpha * candidate - beta;
         if ( !( std::hypot( operations_->norm( *rhs_ ), scalar_residual ) <= tolerance ) )
             return false;
@@ -196,11 +197,13 @@ public:
     }
 
 private:
-    bool solve_border_reduced( T alpha, vector_type &u ) const
+    bool solve_border_reduced( T alpha, T tolerance, vector_type &u ) const
     {
         auto &monitor = reduced_.monitor();
-        // Elimination and scalar recovery amplify the reduced error at a small pivot.
-        const T factor = std::min( T( 1 ), std::abs( alpha ) );
+        // The reduced residual equals the vector block residual, scaled only in the scaled equation.
+        const T target = scaled( alpha ) ? std::abs( alpha ) * tolerance : tolerance;
+        if ( !std::isfinite( target ) )
+            return false;
         struct restore_guard
         {
             Monitor &monitor;
@@ -211,7 +214,7 @@ private:
                 monitor.set_tolerances( relative, absolute );
             }
         } guard{ monitor, monitor.rel_tol(), monitor.abs_tol() };
-        monitor.set_tolerances( guard.relative * factor, guard.absolute * factor );
+        monitor.set_tolerances( T( 0 ), target );
         return reduced_.solve( *operator_, *rhs_, u );
     }
     bool scaled( T alpha ) const
