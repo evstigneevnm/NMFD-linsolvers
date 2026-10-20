@@ -3,15 +3,15 @@
 Template-based linear solvers, Krylov building blocks, preconditioners, and
 linear-space interfaces. The pinned `contrib/nmfd-operations` dependency owns vector
 spaces, operations, block operators, small dense algebra, and `vector_wrap`.
-SCFD supplies backend primitives and utilities; builds default to the SCFD revision
-pinned by NMFD-operations, so only one SCFD include tree is used.
+SCFD supplies backend primitives and utilities; standalone builds use the direct
+`contrib/scfd` pin, so only one SCFD include tree is used.
 
 ## Building And Testing
 
-Initialize all nested dependencies after cloning:
+Initialize direct dependencies after cloning:
 
 ```bash
-git submodule update --init --recursive
+git submodule update --init
 ```
 
 Build and run the complete CPU suite with the default configuration:
@@ -30,8 +30,8 @@ make check_gmres_core_cpu \
 ```
 
 External checkouts can be selected with `NMFD_OPERATIONS_ROOT=/path/to/nmfd-operations`
-and `SCFD_ROOT=/path/to/scfd`. The historical direct `contrib/scfd` submodule is
-retained, but is not the default include tree. Available standalone checks are:
+and `SCFD_ROOT=/path/to/scfd`. Dependency repositories' own submodules are not
+needed for this build. Available standalone checks are:
 
 - `check_public_headers_cpu`
 - `check_orthogonalization_cpu`
@@ -118,6 +118,12 @@ make check_operations_cuda BUILD_DIR=build/cuda CUDA_ARCH=75
 ```
 
 GitHub Actions runs every check as an independent GCC and Clang matrix job.
+These jobs use committed pins. A separate `latest-dependencies` job tests the
+branches declared in `.gitmodules`, logs resolved revisions, and never commits
+updated pins. It runs on pushes, pull requests, manual dispatch, and daily from
+the repository's default branch. Both modes initialize direct dependencies only.
+Integrating projects pass canonical dependency roots instead of using nested copies.
+Local builds never fetch or switch dependency checkouts.
 AddressSanitizer and UndefinedBehaviorSanitizer run after the CPU matrix passes.
 The public-header check compiles each solver header in isolation, without any
 legacy exceptions. The combined header test also includes shared operations and

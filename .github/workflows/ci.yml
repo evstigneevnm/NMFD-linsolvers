@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  schedule:
+    - cron: '37 4 * * *'
   workflow_dispatch:
     inputs:
       run_cuda:
@@ -17,12 +19,17 @@ on:
 permissions:
   contents: read
 
+env:
+  SCFD_ROOT: ${{ github.workspace }}/contrib/scfd
+  NMFD_OPERATIONS_ROOT: ${{ github.workspace }}/contrib/nmfd-operations
+
 defaults:
   run:
     shell: bash
 
 jobs:
   cpu-tests:
+    if: github.event_name != 'schedule'
     name: ${{ matrix.compiler }} / ${{ matrix.test.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -64,7 +71,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          submodules: recursive
+          submodules: true
 
       - name: Install compiler
         run: |
@@ -83,6 +90,7 @@ jobs:
             TEST_OMP_NUM_THREADS=2
 
   short-recurrence-json:
+    if: github.event_name != 'schedule'
     name: JSON / ${{ matrix.solver }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -93,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          submodules: recursive
+          submodules: true
       - name: Install optional JSON dependency
         run: sudo apt-get update && sudo apt-get install -y nlohmann-json3-dev
       - name: Verify JSON configuration and utility hierarchy
@@ -103,6 +111,7 @@ jobs:
             BUILD_DIR=build/json/${{ matrix.solver }} TEST_OMP_NUM_THREADS=2
 
   sanitizers:
+    if: github.event_name != 'schedule'
     name: GCC / ASan + UBSan
     needs: cpu-tests
     runs-on: ubuntu-latest
@@ -110,7 +119,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          submodules: recursive
+          submodules: true
 
       - name: Install compiler
         run: |
@@ -135,8 +144,28 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          submodules: recursive
+          submodules: true
       - name: Build and test
         env:
           CUDA_ARCH: ${{ inputs.cuda_arch }}
         run: make check_operations_cuda check_bicgstab_cuda check_bicgstabl_cuda check_cgs_cuda check_jacobi_cuda check_sherman_morrison_cuda check_direct_solver_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"
+
+  latest-dependencies:
+    name: Latest dependencies / CPU
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: Select designated dependency branch tips
+        run: |
+          git submodule update --init --remote --checkout
+          git rev-parse HEAD
+          git submodule status
+      - run: sudo apt-get update && sudo apt-get install -y build-essential make nlohmann-json3-dev
+      - name: Verify latest dependencies without changing pins
+        run: |
+          make -j2 run_tests_cpu check_public_headers_cpu \
+            check_bicgstab_json_cpu check_bicgstabl_json_cpu check_cgs_json_cpu check_jacobi_json_cpu \
+            BUILD_DIR=build/latest TEST_OMP_NUM_THREADS=2

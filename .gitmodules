@@ -1,6 +1,8 @@
 [submodule "contrib/scfd"]
 	path = contrib/scfd
 	url = https://github.com/oryabkov/SCFD-all.git
+	branch = nevstigneev
 [submodule "contrib/nmfd-operations"]
 	path = contrib/nmfd-operations
 	url = https://github.com/evstigneevnm/NMFD-operations.git
+	branch = master
