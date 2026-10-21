@@ -38,6 +38,7 @@ needed for this build. Available standalone checks are:
 - `check_arnoldi_cpu`
 - `check_monitor_cpu`
 - `check_sherman_morrison_cpu`
+- `check_dense1_extended_solver_cpu`
 - `check_direct_solver_cpu`
 - `check_gmres_core_cpu`
 - `check_gmres_legacy_cpu`
@@ -96,6 +97,13 @@ solve temporarily tightens inner tolerances and restores the caller's settings,
 including on exceptions. Workspaces are allocated once; solves do not copy
 shared handles. `check_sherman_morrison_cuda` exercises the same analytical tests
 on CUDA.
+
+`dense1_extended_solver<OriginalSolver, OrigOperator, OrigVectorSpace>` is also
+owned here, preserving its existing pair-vector API and scalar Schur-complement
+elimination. The public header remains `nmfd/solvers/dense1_extended_solver.h`;
+Newton clients need no source changes. Its regression checks assembled-system
+residuals, repeated solves, operator/solver rebinding, underlying failures, and
+dependency lifetimes for float, double, and long double.
 
 `direct_solver<Space, Monitor, Log, Operator, Inverse>` uses the same solver base
 and shared bindings. The supplied inverse exposes `set_operator(shared_ptr)` and

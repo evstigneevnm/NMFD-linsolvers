@@ -50,6 +50,8 @@ jobs:
             target: check_monitor_cpu
           - name: sherman-morrison
             target: check_sherman_morrison_cpu
+          - name: dense1-extended
+            target: check_dense1_extended_solver_cpu
           - name: direct-solver
             target: check_direct_solver_cpu
           - name: gmres-core
