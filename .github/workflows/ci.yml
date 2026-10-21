@@ -54,6 +54,8 @@ jobs:
             target: check_dense1_extended_solver_cpu
           - name: direct-solver
             target: check_direct_solver_cpu
+          - name: multiprecision
+            target: check_multiprecision_cpu
           - name: gmres-core
             target: check_gmres_core_cpu
           - name: gmres-legacy
@@ -79,6 +81,9 @@ jobs:
         run: |
           sudo apt-get update
           packages=(build-essential make)
+          if [[ "${{ matrix.test.name }}" == "multiprecision" ]]; then
+            packages+=(libboost-dev)
+          fi
           if [[ "${{ matrix.compiler }}" == "clang" ]]; then
             packages+=(clang libomp-dev)
           fi
@@ -126,14 +131,14 @@ jobs:
       - name: Install compiler
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential make
+          sudo apt-get install -y --no-install-recommends build-essential make libboost-dev
 
       - name: Build and test
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          make run_tests_cpu \
+          make run_tests_cpu check_multiprecision_cpu \
             CONFIG_FILE=build_configs/config_github_ubuntu_sanitizers.inc \
             BUILD_DIR=build/sanitizers \
             TEST_OMP_NUM_THREADS=2
@@ -169,9 +174,9 @@ jobs:
           git submodule update --init --remote --no-fetch --checkout
           git rev-parse HEAD
           git submodule status
-      - run: sudo apt-get update && sudo apt-get install -y build-essential make nlohmann-json3-dev
+      - run: sudo apt-get update && sudo apt-get install -y build-essential make nlohmann-json3-dev libboost-dev
       - name: Verify latest dependencies without changing pins
         run: |
-          make -j2 run_tests_cpu check_public_headers_cpu \
+          make -j2 run_tests_cpu check_public_headers_cpu check_multiprecision_cpu \
             check_bicgstab_json_cpu check_bicgstabl_json_cpu check_cgs_json_cpu check_jacobi_json_cpu \
             BUILD_DIR=build/latest TEST_OMP_NUM_THREADS=2

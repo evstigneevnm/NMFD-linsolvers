@@ -44,6 +44,8 @@ SHORT_CPU_TESTS := $(addprefix $(BUILD_DIR)/test_,$(addsuffix _cpu.bin,$(SHORT_S
 SHORT_BACKEND_TESTS := $(addprefix $(BUILD_DIR)/test_,$(addsuffix _backend_cpu.bin,$(SHORT_SOLVERS)))
 JSON_INCLUDE ?=
 JSON_FLAGS := $(if $(JSON_INCLUDE),-I$(JSON_INCLUDE))
+BOOST_ROOT ?=
+BOOST_FLAGS := $(if $(BOOST_ROOT),-I$(BOOST_ROOT)/include)
 
 CPU_TESTS := \
 	$(TEST_PUBLIC_HEADERS) \
@@ -72,6 +74,13 @@ CPU_TESTS := \
 	check_dependencies
 
 all: tests_cpu
+
+$(BUILD_DIR)/test_multiprecision_cpu.bin: test/solvers/test_multiprecision.cpp $(TEST_HEADERS) | $(BUILD_DIR) check_dependencies
+	$(HOST_CXX) $(CXXFLAGS) $(BOOST_FLAGS) $< $(OPENMP_FLAGS) $(LDFLAGS) -o $@
+
+.PHONY: check_multiprecision_cpu
+check_multiprecision_cpu: $(BUILD_DIR)/test_multiprecision_cpu.bin
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $<
 
 $(BUILD_DIR)/test_%_cpu.bin: test/solvers/test_%.cpp test/common/short_recurrence_tests.h $(TEST_HEADERS) | $(BUILD_DIR) check_dependencies
 	$(HOST_CXX) $(CXXFLAGS) $< $(OPENMP_FLAGS) $(LDFLAGS) -o $@

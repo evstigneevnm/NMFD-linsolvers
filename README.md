@@ -40,6 +40,7 @@ needed for this build. Available standalone checks are:
 - `check_sherman_morrison_cpu`
 - `check_dense1_extended_solver_cpu`
 - `check_direct_solver_cpu`
+- `check_multiprecision_cpu` (optional Boost headers)
 - `check_gmres_core_cpu`
 - `check_gmres_legacy_cpu`
 - `check_gmres_mg_cpu`
@@ -114,6 +115,19 @@ checked against the original-system residual, and `x` is published only on
 success. `status()` distinguishes input, inverse, operator, and residual failures.
 Bypassing the only inverse returns failure, not an identity solve. CPU and CUDA
 direct-solver tests also verify rank-one/scalar-border composition and ownership.
+
+CGS, the supplied-inverse direct solver, monitors, and scalar-border composition
+also support host real Boost multiprecision scalars through NMFD-operations'
+optional `backend/boost_multiprecision.h` specialization. The existing
+`cpu_vector_operations_var_prec.h` includes it automatically. Computation and
+residual checks retain the original precision; conversion to double is confined
+to formatted diagnostics. The border solver requires an ordered real field
+scalar, not `std::is_floating_point`. This does not certify complex bordered systems or
+all other Krylov methods for multiprecision.
+`make check_multiprecision_cpu BOOST_ROOT=/path/to/boost` tests precision settings
+100 and 200, sub-double information, true residuals, small pivots, tolerance
+restoration, numerical failures, and lifetimes. Boost is not required for native
+CPU builds. Pinned/latest CI and sanitizer jobs include the optional test.
 
 The operations-integration test uses canonical dense, activation-time SCFD, and
 glued spaces with real and complex scalars. It verifies true GMRES residuals,

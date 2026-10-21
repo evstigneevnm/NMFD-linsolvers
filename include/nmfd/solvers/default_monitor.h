@@ -29,6 +29,7 @@
 #include <scfd/utils/logged_obj_base.h>
 #include <scfd/utils/log.h>
 #include <nmfd/detail/vector_wrap.h>
+#include <nmfd/operations/backend/math.h>
 
 namespace nmfd
 {
@@ -57,6 +58,7 @@ public:
 
 private:
     using T         = norm_type;
+    using math_type = nmfd::operations::backend::math<void, T>;
     using buf_arr_t = nmfd::detail::vector_wrap<VectorOperations, true, false>;
     const vector_operations_type &vec_ops_;
 
@@ -144,9 +146,10 @@ public:
     // Reconfigure between solves; temporary overrides restore to this baseline.
     void configure( const params &parameters )
     {
-        if ( !std::isfinite( parameters.rel_tol ) || parameters.rel_tol < T( 0 ) ||
-             !std::isfinite( parameters.abs_tol ) || parameters.abs_tol < T( 0 ) || parameters.max_iters_num < 0 ||
-             parameters.min_iters_num < 0 || parameters.min_iters_num > parameters.max_iters_num )
+        if ( !math_type::is_finite( parameters.rel_tol ) || parameters.rel_tol < T( 0 ) ||
+             !math_type::is_finite( parameters.abs_tol ) || parameters.abs_tol < T( 0 ) ||
+             parameters.max_iters_num < 0 || parameters.min_iters_num < 0 ||
+             parameters.min_iters_num > parameters.max_iters_num )
             throw std::invalid_argument( "Invalid linear monitor parameters" );
         prms_               = parameters;
         rel_tol_save_       = prms_.rel_tol;
@@ -184,7 +187,8 @@ public:
     }
     void set_tolerances( T rel_tol, T abs_tol )
     {
-        if ( !std::isfinite( rel_tol ) || rel_tol < T( 0 ) || !std::isfinite( abs_tol ) || abs_tol < T( 0 ) )
+        if ( !math_type::is_finite( rel_tol ) || rel_tol < T( 0 ) || !math_type::is_finite( abs_tol ) ||
+             abs_tol < T( 0 ) )
             throw std::invalid_argument( "Invalid linear monitor tolerances" );
         prms_.rel_tol = rel_tol;
         prms_.abs_tol = abs_tol;
@@ -269,7 +273,7 @@ public:
     }
     void check_valid_norm() const
     {
-        is_valid_number_ = std::isfinite( resid_norm_ );
+        is_valid_number_ = math_type::is_finite( resid_norm_ );
     }
     T rhs_norm() const
     {
@@ -340,7 +344,9 @@ public:
 
         resid_norm_ = vec_ops_.norm( r );
 
-        logged_obj_type::info_f( "resid norm = %0.6e tol = %0.6e", resid_norm_out(), tol_out() );
+        logged_obj_type::info_f(
+            "resid norm = %0.6e tol = %0.6e", static_cast<double>( resid_norm_out() ), static_cast<double>( tol_out() )
+        );
         if ( prms_.save_convergence_history )
             convergence_history_.emplace_back( iters_performed(), resid_norm_out() );
 

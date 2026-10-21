@@ -8,8 +8,9 @@
 #include <memory>
 #include <stdexcept>
 #include <utility>
-#include <type_traits>
+#include <limits>
 #include <nmfd/detail/vector_wrap.h>
+#include <nmfd/operations/backend/math.h>
 #include <nmfd/solvers/krylov/operator_apply.h>
 
 namespace nmfd
@@ -27,11 +28,14 @@ public:
     using scalar_type = typename VectorOperations::scalar_type;
     using vector_type = typename VectorOperations::vector_type;
     static_assert(
-        std::is_floating_point<scalar_type>::value, "Scalar-bordered elimination currently requires a real scalar"
+        !nmfd::operations::backend::scalar_traits<void, scalar_type>::is_complex &&
+            !std::numeric_limits<scalar_type>::is_integer,
+        "Scalar-bordered elimination requires an ordered real field scalar"
     );
 
 private:
     using T                = scalar_type;
+    using math_type        = nmfd::operations::backend::math<void, T>;
     using vector_wrap_type = nmfd::detail::vector_wrap<VectorOperations, false, false>;
 
     struct reduced_operator
@@ -77,7 +81,7 @@ private:
             if ( !krylov::apply_in_place( *original, x ) || !krylov::apply_in_place( *original, *work ) )
                 return false;
             const T denominator = op->mass + op->rank * operations->scalar_prod( *op->c, *work );
-            if ( !std::isfinite( denominator ) || denominator == T( 0 ) || op->mass == T( 0 ) )
+            if ( !math_type::is_finite( denominator ) || denominator == T( 0 ) || op->mass == T( 0 ) )
                 return false;
             const T correction = -op->rank * operations->scalar_prod( *op->c, x ) / denominator;
             operations->add_lin_comb( correction / op->mass, *work, T( 1 ) / op->mass, x );
@@ -170,11 +174,11 @@ public:
         const T &beta, vector_type &u, T &v
     ) const
     {
-        if ( !configure( A, T( 1 ), alpha, c, d ) || !std::isfinite( beta ) )
+        if ( !configure( A, T( 1 ), alpha, c, d ) || !math_type::is_finite( beta ) )
             return false;
-        const T tolerance =
-            reduced_.monitor().abs_tol() + reduced_.monitor().rel_tol() * std::hypot( operations_->norm( b ), beta );
-        if ( !std::isfinite( tolerance ) )
+        const T tolerance = reduced_.monitor().abs_tol() +
+                            reduced_.monitor().rel_tol() * math_type::hypot( operations_->norm( b ), beta );
+        if ( !math_type::is_finite( tolerance ) )
             return false;
         if ( scaled( alpha ) )
             operations_->assign_lin_comb( alpha, b, -beta, d, *rhs_ );
@@ -183,14 +187,14 @@ public:
         if ( !solve_border_reduced( alpha, tolerance, u ) )
             return false;
         const T candidate = ( beta - operations_->scalar_prod( c, u ) ) / alpha;
-        if ( !std::isfinite( candidate ) )
+        if ( !math_type::is_finite( candidate ) )
             return false;
         if ( !krylov::apply_operator( A, u, *rhs_ ) )
             return false;
         operations_->add_lin_comb( candidate, d, T( 1 ), *rhs_ );
         operations_->add_lin_comb( T( -1 ), b, T( 1 ), *rhs_ );
         const T scalar_residual = operations_->scalar_prod( c, u ) + alpha * candidate - beta;
-        if ( !( std::hypot( operations_->norm( *rhs_ ), scalar_residual ) <= tolerance ) )
+        if ( !( math_type::hypot( operations_->norm( *rhs_ ), scalar_residual ) <= tolerance ) )
             return false;
         v = candidate;
         return true;
@@ -201,8 +205,8 @@ private:
     {
         auto &monitor = reduced_.monitor();
         // The reduced residual equals the vector block residual, scaled only in the scaled equation.
-        const T target = scaled( alpha ) ? std::abs( alpha ) * tolerance : tolerance;
-        if ( !std::isfinite( target ) )
+        const T target = scaled( alpha ) ? math_type::abs( alpha ) * tolerance : tolerance;
+        if ( !math_type::is_finite( target ) )
             return false;
         struct restore_guard
         {
@@ -219,7 +223,7 @@ private:
     }
     bool scaled( T alpha ) const
     {
-        return use_small_alpha_ && std::abs( alpha ) < T( 1e-3 );
+        return use_small_alpha_ && math_type::abs( alpha ) < T( 1e-3 );
     }
     void check_operator( const LinearOperator &A ) const
     {
@@ -229,7 +233,7 @@ private:
     bool configure( const LinearOperator &A, T gamma, T alpha, const vector_type &c, const vector_type &d ) const
     {
         check_operator( A );
-        if ( !std::isfinite( alpha ) || !std::isfinite( gamma ) || alpha == T( 0 ) || gamma == T( 0 ) )
+        if ( !math_type::is_finite( alpha ) || !math_type::is_finite( gamma ) || alpha == T( 0 ) || gamma == T( 0 ) )
             return false;
         operator_->c    = &c;
         operator_->d    = &d;

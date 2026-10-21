@@ -10,6 +10,7 @@
 #include <string>
 #include <utility>
 #include <nmfd/detail/vector_wrap.h>
+#include <nmfd/operations/backend/math.h>
 #include <nmfd/solvers/detail/monitor_call_wrap.h>
 #include <nmfd/solvers/iter_solver_base.h>
 #include <nmfd/solvers/krylov/operator_apply.h>
@@ -25,6 +26,7 @@ class direct_solver : public iter_solver_base<VectorOperations, Monitor, Log, Li
 {
     using parent_t         = iter_solver_base<VectorOperations, Monitor, Log, LinearOperator, Inverse>;
     using vector_wrap_type = nmfd::detail::vector_wrap<VectorOperations, false, false>;
+    using math_type        = nmfd::operations::backend::math<void, typename VectorOperations::norm_type>;
 
 public:
     using scalar_type = typename VectorOperations::scalar_type;
@@ -92,7 +94,7 @@ public:
         status_ = result_status::invalid_input;
         detail::monitor_call_wrap<VectorOperations, Monitor> scope( this->monitor_ );
         scope.start( b );
-        if ( !this->vec_ops_->is_valid_number( b ) || !std::isfinite( this->monitor_.tol() ) )
+        if ( !this->vec_ops_->is_valid_number( b ) || !math_type::is_finite( this->monitor_.tol() ) )
             return false;
         this->vec_ops_->assign( b, *candidate_ );
         status_ = result_status::inverse_failed;
@@ -106,7 +108,7 @@ public:
         ++this->monitor_;
         this->monitor_.check_finished( *candidate_, *residual_ );
         status_ = result_status::residual_too_large;
-        if ( !this->monitor_.is_valid_number() || !std::isfinite( this->monitor_.resid_norm() ) ||
+        if ( !this->monitor_.is_valid_number() || !math_type::is_finite( this->monitor_.resid_norm() ) ||
              !this->monitor_.converged() )
             return false;
         this->vec_ops_->assign( *candidate_, x );
@@ -117,7 +119,7 @@ public:
 private:
     static std::shared_ptr<VectorOperations> checked_space( std::shared_ptr<VectorOperations> space, const params &p )
     {
-        if ( !space || !std::isfinite( p.monitor.rel_tol ) || !std::isfinite( p.monitor.abs_tol ) ||
+        if ( !space || !math_type::is_finite( p.monitor.rel_tol ) || !math_type::is_finite( p.monitor.abs_tol ) ||
              p.monitor.rel_tol < norm_type( 0 ) || p.monitor.abs_tol < norm_type( 0 ) || p.monitor.min_iters_num < 0 ||
              p.monitor.max_iters_num < p.monitor.min_iters_num )
             throw std::invalid_argument( "Invalid direct solver parameters" );

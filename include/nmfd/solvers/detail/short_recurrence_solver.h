@@ -18,6 +18,7 @@
 #include <nmfd/detail/algo_utils_hierarchy.h>
 #include <nmfd/detail/algo_utils_hierarchy_factory.h>
 #include <nmfd/detail/vector_wrap.h>
+#include <nmfd/operations/backend/math.h>
 #include <nmfd/solvers/iter_solver_base.h>
 #include <nmfd/solvers/krylov/operator_apply.h>
 #include "monitor_call_wrap.h"
@@ -191,8 +192,8 @@ protected:
           checked_residual_( *vec_ops_ )
     {
         if ( p.resid_recalc_freq < 0 || p.monitor.max_iters_num < 0 || p.monitor.min_iters_num < 0 ||
-             p.monitor.min_iters_num > p.monitor.max_iters_num || !std::isfinite( p.monitor.rel_tol ) ||
-             !std::isfinite( p.monitor.abs_tol ) || p.monitor.rel_tol < norm_type( 0 ) ||
+             p.monitor.min_iters_num > p.monitor.max_iters_num || !norm_math_type::is_finite( p.monitor.rel_tol ) ||
+             !norm_math_type::is_finite( p.monitor.abs_tol ) || p.monitor.rel_tol < norm_type( 0 ) ||
              p.monitor.abs_tol < norm_type( 0 ) )
             throw std::invalid_argument( "Invalid short-recurrence solver parameters" );
         checked_residual_.init();
@@ -221,6 +222,8 @@ protected:
     {
         return *vectors_[index];
     }
+
+    using norm_math_type = nmfd::operations::backend::math<void, norm_type>;
 
     static bool finite( T value )
     {
@@ -259,11 +262,11 @@ protected:
     ) const
     {
         rhs_norm_ = vec_ops_->norm( rhs );
-        if ( !std::isfinite( rhs_norm_ ) || !vec_ops_->is_valid_number( x ) )
+        if ( !norm_math_type::is_finite( rhs_norm_ ) || !vec_ops_->is_valid_number( x ) )
             return false;
         if ( !residual( A, rhs, x, r ) || ( precondition_residual && !precondition( r ) ) )
             return false;
-        return std::isfinite( vec_ops_->norm( r ) );
+        return norm_math_type::is_finite( vec_ops_->norm( r ) );
     }
     bool candidate_norm(
         const LinearOperator &A, const vector_type &rhs, const vector_type &x, const vector_type &r, norm_type &norm
@@ -278,7 +281,7 @@ protected:
             checked = &*checked_residual_;
         }
         norm = vec_ops_->norm( *checked );
-        return std::isfinite( norm );
+        return norm_math_type::is_finite( norm );
     }
     bool start_monitor( const vector_type &rhs, monitor_call_wrap<VectorOperations, Monitor> &scope ) const
     {
@@ -291,7 +294,7 @@ protected:
         }
         else
             scope.start( rhs );
-        return std::isfinite( monitor_.tol() );
+        return norm_math_type::is_finite( monitor_.tol() );
     }
     iteration_state check(
         const LinearOperator &A, const vector_type &rhs, const vector_type &x, const vector_type &r,
@@ -317,7 +320,7 @@ protected:
             checked = &*checked_residual_;
         }
         const bool finished = monitor_.check_finished( x, *checked );
-        if ( !monitor_.is_valid_number() || !std::isfinite( monitor_.resid_norm() ) )
+        if ( !monitor_.is_valid_number() || !norm_math_type::is_finite( monitor_.resid_norm() ) )
             return iteration_state::failed;
         if ( !finished )
             return iteration_state::running;
@@ -334,7 +337,7 @@ protected:
                 physical_norm = vec_ops_->norm( *checked_residual_ );
             }
         }
-        if ( !std::isfinite( physical_norm ) )
+        if ( !norm_math_type::is_finite( physical_norm ) )
             return iteration_state::failed;
         if ( physical_norm <= monitor_.abs_tol() + monitor_.rel_tol() * rhs_norm_ )
             return iteration_state::converged;
@@ -349,8 +352,8 @@ protected:
             if ( !residual( A, rhs, monitor_.min_resid_norm_x(), *checked_residual_ ) )
                 return false;
             const norm_type norm = vec_ops_->norm( *checked_residual_ );
-            if ( std::isfinite( norm ) && ( state != iteration_state::converged ||
-                                            norm <= monitor_.abs_tol() + monitor_.rel_tol() * rhs_norm_ ) )
+            if ( norm_math_type::is_finite( norm ) && ( state != iteration_state::converged ||
+                                                        norm <= monitor_.abs_tol() + monitor_.rel_tol() * rhs_norm_ ) )
                 vec_ops_->assign( monitor_.min_resid_norm_x(), x );
         }
         return state == iteration_state::converged;
