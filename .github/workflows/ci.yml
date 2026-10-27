@@ -64,6 +64,8 @@ jobs:
             target: check_gmres_mg_cpu
           - name: operations-integration
             target: check_operations_cpu
+          - name: product-space
+            target: check_product_space_cpu
           - name: bicgstab
             target: check_bicgstab_cpu
           - name: bicgstabl
