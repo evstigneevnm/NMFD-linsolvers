@@ -17,6 +17,7 @@
 #include <nmfd/operations/vector_space_base.h>
 #include <nmfd/preconditioners/dummy.h>
 #include <nmfd/preconditioners/block_schur.h>
+#include <nmfd/preconditioners/small_schur_inverse.h>
 #include <nmfd/preconditioners/mg.h>
 #include <nmfd/preconditioners/preconditioner_interface.h>
 #include <nmfd/solvers/default_monitor.h>

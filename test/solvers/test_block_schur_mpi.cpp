@@ -10,6 +10,7 @@
 #include <nmfd/operations/rect_vector_space.h>
 #include <nmfd/operations/static_vector_space.h>
 #include <nmfd/preconditioners/block_schur.h>
+#include <nmfd/preconditioners/small_schur_inverse.h>
 #include <nmfd/solvers/bicgstabl.h>
 #include <nmfd/solvers/gmres.h>
 #include <nmfd/solvers/monitor_krylov.h>
@@ -181,7 +182,8 @@ int main( int argc, char *argv[] )
         using bicgstabl_type =
             nmfd::solvers::bicgstabl<space_type, monitor_type, scfd::utils::log_std, operator_type, prec_type>;
         auto field        = std::make_shared<field_type>( typename field_type::idx_nd_type{ comm.myid + 2 }, comm );
-        auto space        = std::make_shared<space_type>( field, std::make_shared<parameter_type>() );
+        auto parameters   = std::make_shared<parameter_type>();
+        auto space        = std::make_shared<space_type>( field, parameters );
         auto a            = std::make_shared<diagonal_block<field_type>>();
         a->space          = field;
         auto off_diagonal = std::make_shared<coupling<field_type>>( field, comm.myid );
@@ -193,6 +195,17 @@ int main( int argc, char *argv[] )
         nmfd::tests::test_harness test;
         check_solver<gmres_type>( space, op, prec, *a, test );
         check_solver<bicgstabl_type>( space, op, prec, *a, test );
+        // Keep the reference inverse above and independently exercise the production
+        // factor on replicated parameters coupled to an unevenly distributed field.
+        using q_type               = nmfd::preconditioners::small_schur_inverse<parameter_type, schur_type, 2>;
+        using production_prec_type = nmfd::preconditioners::block_schur<space_type, operator_type, h_type, q_type>;
+        using production_gmres_type =
+            nmfd::solvers::gmres<space_type, monitor_type, scfd::utils::log_std, operator_type, production_prec_type>;
+        using production_bicgstabl_type = nmfd::solvers::bicgstabl<
+            space_type, monitor_type, scfd::utils::log_std, operator_type, production_prec_type>;
+        auto production = std::make_shared<production_prec_type>( space, h, std::make_shared<q_type>( parameters ) );
+        check_solver<production_gmres_type>( space, op, production, *a, test );
+        check_solver<production_bicgstabl_type>( space, op, production, *a, test );
         const int failures = comm.all_reduce_sum( int( test.failures() ) );
         if ( comm.myid == 0 )
             std::cout << "Block Schur MPI: " << test.checks() << " checks per rank on " << comm.num_procs << " ranks, "
