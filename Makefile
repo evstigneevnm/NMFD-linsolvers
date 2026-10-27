@@ -13,6 +13,17 @@ CUDA_ROOT ?= /usr/local/cuda
 NVCC ?= $(CUDA_ROOT)/bin/nvcc
 CUDA_ARCH ?= 75
 NVCCFLAGS ?= -std=$(CPPSTD) -O2 --extended-lambda -gencode arch=compute_$(CUDA_ARCH),code=sm_$(CUDA_ARCH)
+MPICXX ?= mpicxx
+MPIEXEC ?= mpiexec
+MPIEXEC_FLAGS ?=
+MPI_NP ?= 2
+MPI_CXXFLAGS ?=
+MPI_LDFLAGS ?=
+HIPCC ?= hipcc
+HIPFLAGS ?= -std=$(CPPSTD) -O2
+HIP_LANGUAGE ?= hip
+HIP_EXTRA_OBJECTS ?=
+HIP_LDFLAGS ?= -lhipblas -lhipsolver
 
 NMFD_INCLUDE := include
 NMFD_OPERATIONS_INCLUDE := $(NMFD_OPERATIONS_ROOT)/include
@@ -37,6 +48,8 @@ TEST_GMRES_LEGACY := $(BUILD_DIR)/test_gmres_legacy_cpu.bin
 TEST_GMRES_MG := $(BUILD_DIR)/test_gmres_mg_cpu.bin
 TEST_OPERATIONS := $(BUILD_DIR)/test_operations_integration_cpu.bin
 TEST_PRODUCT_SPACE := $(BUILD_DIR)/test_product_space_cpu.bin
+TEST_BLOCK_SCHUR := $(BUILD_DIR)/test_block_schur_cpu.bin
+TEST_BLOCK_SCHUR_GLUED := $(BUILD_DIR)/test_block_schur_glued_cpu.bin
 TEST_OPERATIONS_CUDA := $(BUILD_DIR)/test_operations_integration_cuda.bin
 TEST_JACOBI := $(BUILD_DIR)/test_jacobi_cpu.bin
 TEST_JACOBI_BACKEND := $(BUILD_DIR)/test_jacobi_backend_cpu.bin
@@ -56,7 +69,7 @@ CPU_TESTS := \
 	$(TEST_GMRES_CORE) \
 	$(TEST_GMRES_LEGACY) \
 	$(TEST_GMRES_MG) \
-	$(TEST_OPERATIONS) $(TEST_PRODUCT_SPACE) $(SHORT_CPU_TESTS) $(SHORT_BACKEND_TESTS) $(TEST_JACOBI) $(TEST_JACOBI_BACKEND)
+	$(TEST_OPERATIONS) $(TEST_PRODUCT_SPACE) $(TEST_BLOCK_SCHUR) $(TEST_BLOCK_SCHUR_GLUED) $(SHORT_CPU_TESTS) $(SHORT_BACKEND_TESTS) $(TEST_JACOBI) $(TEST_JACOBI_BACKEND)
 
 .PHONY: \
 	all \
@@ -218,6 +231,35 @@ check_operations_cpu: $(TEST_OPERATIONS)
 check_product_space_cpu: $(TEST_PRODUCT_SPACE)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $<
 
+.PHONY: check_block_schur_cpu check_block_schur_cuda
+check_block_schur_cpu: $(TEST_BLOCK_SCHUR) $(TEST_BLOCK_SCHUR_GLUED)
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_BLOCK_SCHUR)
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_BLOCK_SCHUR_GLUED)
+
+$(BUILD_DIR)/test_block_schur_cuda.bin $(BUILD_DIR)/test_block_schur_glued_cuda.bin: $(BUILD_DIR)/test_%_cuda.bin: test/solvers/test_%.cpp $(TEST_HEADERS) $(BUILD_DIR)/operations_cuda_reductions.o | check_dependencies
+	$(NVCC) $(NVCCFLAGS) $(INCLUDES) -DTEST_OPERATIONS_CUDA -x cu -c $< -o $(BUILD_DIR)/test_$*_cuda.o
+	$(NVCC) $(NVCCFLAGS) $(BUILD_DIR)/test_$*_cuda.o $(BUILD_DIR)/operations_cuda_reductions.o -lcublas -lcusolver -o $@
+
+check_block_schur_cuda: $(BUILD_DIR)/test_block_schur_cuda.bin $(BUILD_DIR)/test_block_schur_glued_cuda.bin
+	$(BUILD_DIR)/test_block_schur_cuda.bin
+	$(BUILD_DIR)/test_block_schur_glued_cuda.bin
+
+.PHONY: check_block_schur_hip
+$(BUILD_DIR)/test_block_schur_hip.bin $(BUILD_DIR)/test_block_schur_glued_hip.bin: $(BUILD_DIR)/test_%_hip.bin: test/solvers/test_%.cpp $(TEST_HEADERS) $(HIP_EXTRA_OBJECTS) | $(BUILD_DIR) check_dependencies
+	$(HIPCC) $(HIPFLAGS) $(INCLUDES) -DTEST_OPERATIONS_HIP -x $(HIP_LANGUAGE) -c $< -o $(BUILD_DIR)/test_$*_hip.o
+	$(HIPCC) $(HIPFLAGS) $(BUILD_DIR)/test_$*_hip.o $(HIP_EXTRA_OBJECTS) $(HIP_LDFLAGS) -o $@
+
+check_block_schur_hip: $(BUILD_DIR)/test_block_schur_hip.bin $(BUILD_DIR)/test_block_schur_glued_hip.bin
+	$(BUILD_DIR)/test_block_schur_hip.bin
+	$(BUILD_DIR)/test_block_schur_glued_hip.bin
+
+.PHONY: check_block_schur_mpi
+$(BUILD_DIR)/test_block_schur_mpi.bin: test/solvers/test_block_schur_mpi.cpp $(TEST_HEADERS) | $(BUILD_DIR) check_dependencies
+	$(MPICXX) $(CXXFLAGS) $(MPI_CXXFLAGS) $< $(OPENMP_FLAGS) $(LDFLAGS) $(MPI_LDFLAGS) -o $@
+
+check_block_schur_mpi: $(BUILD_DIR)/test_block_schur_mpi.bin
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(MPIEXEC) $(MPIEXEC_FLAGS) -n $(MPI_NP) $<
+
 check_operations_cuda: $(TEST_OPERATIONS_CUDA)
 	$(TEST_OPERATIONS_CUDA)
 
@@ -234,6 +276,8 @@ run_tests_cpu: tests_cpu
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_GMRES_MG)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_OPERATIONS)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_PRODUCT_SPACE)
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_BLOCK_SCHUR)
+	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_BLOCK_SCHUR_GLUED)
 	@set -e; for test in $(SHORT_CPU_TESTS) $(SHORT_BACKEND_TESTS); do OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $$test; done
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_JACOBI)
 	OMP_NUM_THREADS=$(TEST_OMP_NUM_THREADS) $(TEST_JACOBI_BACKEND)

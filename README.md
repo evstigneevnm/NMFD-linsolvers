@@ -45,10 +45,55 @@ needed for this build. Available standalone checks are:
 - `check_gmres_legacy_cpu`
 - `check_gmres_mg_cpu`
 - `check_operations_cpu`
+- `check_block_schur_cpu` (also `_cuda`, `_hip`, and `_mpi`)
 - `check_bicgstab_cpu`
 - `check_bicgstabl_cpu`
 - `check_cgs_cpu`
 - `check_jacobi_cpu`
+
+## Block-Schur Preconditioning
+
+`nmfd/preconditioners/block_schur.h` provides `schur_complement_operator` and
+`block_schur<Space, Operator, H, Q, Access>`. The problem supplies `[A B; C E]` on a
+product or two-component glued space. The default `two_block_access` maps product
+components and `block_11()` through `block_22()` without state.
+`nmfd/operations/block_operator.h` supplies that composition when needed.
+H and Q are independently supplied inverse approximations with `set_operator()`
+and in-place `apply()`, returning void or bool. Q receives the matrix-free
+operator `E-C*H*B`; neither a dense Schur matrix nor cached columns are required.
+Its `get_operator()` returns the retained original system, allowing matrix-aware
+Q setup to inspect the original blocks.
+
+For an existing glued matrix, supply its same shared operations object explicitly:
+
+```cpp
+using access_type = nmfd::operations::two_block_access<space_type, operator_type>;
+auto prec = std::make_shared<prec_type>( space, h, q, access_type( operations ) );
+```
+
+No `apply_block()` method is added to the glued matrix. Access uses `comp()` and
+`comp_ptr()` directly, preserves the original A handle for matrix-based H setup,
+and performs no matrix/vector copies. Access owns operations; no shared handles
+are copied during block application. Existing product constructors are unchanged.
+
+`set_operator()` and `update_operator()` rebuild setup. Check `ready()` for
+setup success; failed setup disables the preconditioner. `apply(rhs, out)` and
+`apply(in_out)` return bool and leave caller vectors unchanged on failure.
+Workspaces are allocated once. Recreate the objects after layout changes and
+use independent mutable workspaces for concurrent solves. H/Q must be fixed
+linear maps during ordinary GMRES or BiCGStab(L); adaptive inner solves are not
+automatically valid preconditioners for those methods.
+MPI component actions must report failures consistently across their communicator
+before subsequent collectives.
+
+Zero E and singular A do not by themselves imply singularity of the complete
+system. Shifts belong only in supplied approximate factors. Recovery is explicit;
+the original-system residual remains the acceptance criterion. Tests cover
+k=1/k=2, a gauge-fixed Stokes system, shifted-H recovery, failures, ownership,
+real/complex arithmetic, and MPI fields with replicated parameters. The sampled
+dense inverses in the tests are reference implementations, not production defaults.
+
+## Existing Solvers
 
 Jacobi is also owned by this library. Its historical template argument order
 `jacobi<VectorOp, Operator, Preconditioner, Monitor, Log>` and existing

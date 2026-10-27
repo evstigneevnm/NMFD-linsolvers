@@ -66,6 +66,8 @@ jobs:
             target: check_operations_cpu
           - name: product-space
             target: check_product_space_cpu
+          - name: block-schur
+            target: check_block_schur_cpu
           - name: bicgstab
             target: check_bicgstab_cpu
           - name: bicgstabl
@@ -97,6 +99,27 @@ jobs:
             CONFIG_FILE="build_configs/config_github_ubuntu_${{ matrix.compiler }}.inc" \
             BUILD_DIR="build/${{ matrix.compiler }}/${{ matrix.test.name }}" \
             TEST_OMP_NUM_THREADS=2
+
+  block-schur-mpi:
+    if: github.event_name != 'schedule'
+    name: Block Schur / MPI / ${{ matrix.ranks }} ranks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        ranks: [1, 2, 4]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - run: sudo apt-get update && sudo apt-get install -y build-essential make openmpi-bin libopenmpi-dev
+      - name: Verify distributed fields and replicated parameters
+        run: |
+          make check_block_schur_mpi \
+            CONFIG_FILE=build_configs/config_github_ubuntu_gcc.inc \
+            BUILD_DIR=build/block_schur_mpi MPI_NP=${{ matrix.ranks }} \
+            MPIEXEC_FLAGS=--oversubscribe TEST_OMP_NUM_THREADS=2
 
   short-recurrence-json:
     if: github.event_name != 'schedule'
@@ -157,7 +180,7 @@ jobs:
       - name: Build and test
         env:
           CUDA_ARCH: ${{ inputs.cuda_arch }}
-        run: make check_operations_cuda check_bicgstab_cuda check_bicgstabl_cuda check_cgs_cuda check_jacobi_cuda check_sherman_morrison_cuda check_direct_solver_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"
+        run: make check_operations_cuda check_bicgstab_cuda check_bicgstabl_cuda check_cgs_cuda check_jacobi_cuda check_sherman_morrison_cuda check_direct_solver_cuda check_block_schur_cuda BUILD_DIR=build/cuda CUDA_ARCH="$CUDA_ARCH"
 
   latest-dependencies:
     name: Latest dependencies / CPU
@@ -176,9 +199,11 @@ jobs:
           git submodule update --init --remote --no-fetch --checkout
           git rev-parse HEAD
           git submodule status
-      - run: sudo apt-get update && sudo apt-get install -y build-essential make nlohmann-json3-dev libboost-dev
+      - run: sudo apt-get update && sudo apt-get install -y build-essential make nlohmann-json3-dev libboost-dev openmpi-bin libopenmpi-dev
       - name: Verify latest dependencies without changing pins
         run: |
           make -j2 run_tests_cpu check_public_headers_cpu check_multiprecision_cpu \
             check_bicgstab_json_cpu check_bicgstabl_json_cpu check_cgs_json_cpu check_jacobi_json_cpu \
             BUILD_DIR=build/latest TEST_OMP_NUM_THREADS=2
+          make check_block_schur_mpi \
+            BUILD_DIR=build/latest MPI_NP=2 MPIEXEC_FLAGS=--oversubscribe TEST_OMP_NUM_THREADS=2
