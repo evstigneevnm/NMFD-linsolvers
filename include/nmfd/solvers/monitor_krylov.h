@@ -87,7 +87,10 @@ public:
         if ( converged_by_ritz_norm )
         {
             logged_obj_type::info_f( "converged by ritz residual norm at iter = %d", iters_performed() );
-            logged_obj_type::info_f( "ritz resid norm = %0.6e tol = %0.6e", norm_out( ritz_resid_norm ), tol_out() );
+            logged_obj_type::info_f(
+                "ritz resid norm = %0.6e tol = %0.6e", static_cast<double>( norm_out( ritz_resid_norm ) ),
+                static_cast<double>( tol_out() )
+            );
         }
 
         return converged_by_ritz_norm;

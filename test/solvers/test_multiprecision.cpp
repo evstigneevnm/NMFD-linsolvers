@@ -193,7 +193,8 @@ void test_gmres_schur( nmfd::tests::test_harness &test )
     typename solver_type::params parameters;
     parameters.monitor.abs_tol = T( "1e-70" );
     parameters.monitor.rel_tol = T( "1e-70" );
-    solver_type solver( space, nullptr, parameters, std::make_shared<inverse_type>() );
+    scfd::utils::log_std log;
+    solver_type          solver( space, &log, parameters, std::make_shared<inverse_type>() );
     solver.set_operator( op );
     vector_type exact{ T( 1 ) + T( "1e-35" ), T( 2 ), T( -3 ) }, rhs( 3 ), result( 3, T( 0 ) );
     op->apply( exact, rhs );
