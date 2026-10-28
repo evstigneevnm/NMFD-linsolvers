@@ -21,6 +21,7 @@
 #    include <nlohmann/json.hpp>
 #endif
 #include "default_monitor.h"
+#include <nmfd/operations/backend/math.h>
 
 namespace nmfd
 {
@@ -80,7 +81,8 @@ public:
             convergence_history_.emplace_back( iters_performed(), norm_out( ritz_resid_norm ) );
         }
 
-        bool converged_by_ritz_norm = std::isfinite( ritz_resid_norm ) && ( ritz_resid_norm <= tol() );
+        bool converged_by_ritz_norm =
+            nmfd::operations::backend::math<void, T>::is_finite( ritz_resid_norm ) && ( ritz_resid_norm <= tol() );
 
         if ( converged_by_ritz_norm )
         {

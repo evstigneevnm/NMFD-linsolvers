@@ -481,7 +481,8 @@ public:
             zero_host_s();
 
             const norm_type beta = vec_ops_->norm( r_ );
-            if ( !std::isfinite( beta ) || !( beta > std::numeric_limits<norm_type>::min() ) )
+            if ( !nmfd::operations::backend::math<void, norm_type>::is_finite( beta ) ||
+                 !( beta > std::numeric_limits<norm_type>::min() ) )
             {
                 operation_ok = false;
                 logged_obj_t::error_f( "solve: invalid residual norm at restart: %e", static_cast<double>( beta ) );

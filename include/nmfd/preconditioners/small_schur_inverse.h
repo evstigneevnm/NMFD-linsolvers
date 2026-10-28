@@ -16,12 +16,13 @@ namespace preconditioners
 {
 
 // A small, locally addressable or replicated parameter block. Capacity is a setup bound,
-// not the field dimension. The existing small-dense LU supports real floating-point scalars.
+// not the field dimension. Scalar math follows the operations backend traits.
 template <class VectorSpace, class Operator, std::size_t Capacity = 16>
 class small_schur_inverse
 {
 public:
     using scalar_type = typename VectorSpace::scalar_type;
+    using math_type   = nmfd::operations::backend::math<void, scalar_type>;
     using vector_type = typename VectorSpace::vector_type;
 
     explicit small_schur_inverse( std::shared_ptr<VectorSpace> space )
@@ -58,7 +59,7 @@ public:
             return false;
         for ( std::size_t i = 0; i < size_; ++i )
             for ( std::size_t j = 0; j < size_; ++j )
-                if ( !std::isfinite( lu_( i, j ) ) )
+                if ( !math_type::is_finite( lu_( i, j ) ) )
                     return false;
         ready_ = true;
         return true;
@@ -82,7 +83,7 @@ public:
         operations::linalg::solve_lu_in_place( lu_, pivots_, candidate );
         for ( std::size_t i = 0; i < size_; ++i )
         {
-            if ( !std::isfinite( candidate[i] ) )
+            if ( !math_type::is_finite( candidate[i] ) )
                 return false;
             values[i] = candidate[i];
         }

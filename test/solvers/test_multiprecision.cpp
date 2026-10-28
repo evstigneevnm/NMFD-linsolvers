@@ -7,6 +7,9 @@
 #include <nmfd/solvers/default_monitor.h>
 #include <nmfd/solvers/direct_solver.h>
 #include <nmfd/solvers/sherman_morrison.h>
+#include <nmfd/solvers/gmres.h>
+#include <nmfd/solvers/monitor_krylov.h>
+#include <nmfd/preconditioners/small_schur_inverse.h>
 #include "common/test_harness.h"
 
 namespace
@@ -175,11 +178,42 @@ void test_solver( nmfd::tests::test_harness &test )
     test.require( weak_space.expired() && weak_operator.expired() && weak_inverse.expired(), "no dependency cycles" );
 }
 
+void test_gmres_schur( nmfd::tests::test_harness &test )
+{
+    using space_type    = cpu_vector_operations_var_prec<100>;
+    using T             = typename space_type::scalar_type;
+    using vector_type   = typename space_type::vector_type;
+    using operator_type = diagonal_operator<space_type>;
+    using inverse_type  = diagonal_inverse<space_type, operator_type>;
+    using solver_type   = nmfd::solvers::gmres<
+          space_type, nmfd::solvers::monitor_krylov<space_type, scfd::utils::log_std>, scfd::utils::log_std,
+          operator_type, inverse_type>;
+    auto                         space = std::make_shared<space_type>( 3 );
+    auto                         op    = std::make_shared<operator_type>();
+    typename solver_type::params parameters;
+    parameters.monitor.abs_tol = T( "1e-70" );
+    parameters.monitor.rel_tol = T( "1e-70" );
+    solver_type solver( space, nullptr, parameters, std::make_shared<inverse_type>() );
+    solver.set_operator( op );
+    vector_type exact{ T( 1 ) + T( "1e-35" ), T( 2 ), T( -3 ) }, rhs( 3 ), result( 3, T( 0 ) );
+    op->apply( exact, rhs );
+    test.require( solver.solve( rhs, result ), "multiprecision GMRES" );
+    space->add_lin_comb( T( -1 ), exact, T( 1 ), result );
+    test.require( space->norm( result ) < T( "1e-60" ), "GMRES retains sub-double information" );
+    nmfd::preconditioners::small_schur_inverse<space_type, operator_type> schur( space );
+    test.require( schur.set_operator( op ) && schur.apply( rhs ), "multiprecision Schur preparation and application" );
+    space->add_lin_comb( T( -1 ), exact, T( 1 ), rhs );
+    test.require( space->norm( rhs ) < T( "1e-60" ), "small Schur solve retains precision" );
+    op->first = 0;
+    test.require( !schur.set_operator( op ) && !schur.ready(), "failed Schur rebinding invalidates factors" );
+}
+
 } // namespace
 
 int main()
 {
     nmfd::tests::test_harness test;
+    test_gmres_schur( test );
     test_solver<100, nmfd::solvers::cgs>( test );
     test_solver<200, nmfd::solvers::cgs>( test );
     test_solver<100, nmfd::solvers::direct_solver>( test );

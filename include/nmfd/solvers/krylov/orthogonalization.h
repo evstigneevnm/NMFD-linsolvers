@@ -7,6 +7,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <nmfd/operations/backend/math.h>
 
 namespace nmfd
 {
@@ -200,7 +201,7 @@ orthogonalization_result<typename VectorSpace::norm_type> orthogonalize(
     std::fill( coefficients, coefficients + basis_size, scalar_type{} );
     result.norm_before = vector_space.norm( candidate );
     result.norm_after  = result.norm_before;
-    if ( !std::isfinite( result.norm_before ) )
+    if ( !nmfd::operations::backend::math<void, norm_type>::is_finite( result.norm_before ) )
     {
         result.status = orthogonalization_status::non_finite;
         return result;
@@ -225,7 +226,7 @@ orthogonalization_result<typename VectorSpace::norm_type> orthogonalize(
 
         ++result.passes;
         result.norm_after = vector_space.norm( candidate );
-        if ( !std::isfinite( result.norm_after ) )
+        if ( !nmfd::operations::backend::math<void, norm_type>::is_finite( result.norm_after ) )
         {
             result.status = orthogonalization_status::non_finite;
             return result;
